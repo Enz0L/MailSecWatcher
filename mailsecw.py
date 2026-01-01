@@ -42,10 +42,20 @@ def spf_resolver(domain):
     except:
         print("Cant find SPF in TXT records")
 
+def dmarc_resolver(domain):
+    try:
+        answers = dns.resolver.resolve(f"_dmarc.{domain}", 'TXT')
+        for answer in answers:
+            dmarc = answer
+        return dmarc
+    except:
+        print("Can't resolve DMARC")
 
 if __name__ == "__main__":
     options = prog_parse()
     domain = options.domain
     print(domain)
     spf  = spf_resolver(domain)
+    print(dmarc_resolver(domain))
+
 
