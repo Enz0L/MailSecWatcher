@@ -51,11 +51,41 @@ def dmarc_resolver(domain):
     except:
         print("Can't resolve DMARC")
 
+
+def dkim_resolver(domain, selectors_provided):
+    results = []  
+
+    if selectors_provided:
+        selector = input("Give a selector to test: ")
+        try:
+            answers = dns.resolver.resolve(f"{selector}._domainkey.{domain}", "CNAME")
+            results = [answer.to_text() for answer in answers]
+        except:
+            pass  
+
+    else:
+        selectors = [
+            "selector1", "selector2", "google", "k1", "k2", "ctct1", "ctct2", "sm", "s1", "s2",
+            "sig1", "litesrv", "zendesk1", "zendesk2", "mail", "email", "dkim", "default", "class",
+            "spop", "spop1024", "bfi", "alpha", "authsmtp", "pmta", "m", "main", "stigmate",
+            "squaremail", "publickey", "proddkim", "ED-DKIM", "care", "0xdeadbeef", "yousendit",
+            "scooby", "postfix.private", "primary", "mandrill", "dkimmail", "protonmail",
+            "protonmail2", "protonmail3"
+        ]
+
+        for selector in selectors:
+            try:
+                answers = dns.resolver.resolve(f"{selector}._domainkey.{domain}", "CNAME")
+                for answer in answers:
+                    results.append(f"{selector}: {answer.to_text()}")
+            except:
+                continue  
+
+    return results if results else ["No DKIM Record"]
 if __name__ == "__main__":
     options = prog_parse()
     domain = options.domain
     print(domain)
-    spf  = spf_resolver(domain)
+    print(spf_resolver(domain))
     print(dmarc_resolver(domain))
-
-
+    print(dkim_resolver("enzolenair.fr", False))
