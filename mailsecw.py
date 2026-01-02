@@ -1,5 +1,5 @@
 # Author: Enzo LE NAIR
-# Version: V0.0.2 
+# Version: V0.0.4 
 # Descr: Mail DNS-based protection checker
 #   MailSecWatcher - Tool in development
 #   Copyright (C) 2025  Enzo LE NAIR
@@ -80,12 +80,118 @@ def dkim_resolver(domain, selectors_provided):
                     results.append(f"{selector}: {answer.to_text()}")
             except:
                 continue  
-
     return results if results else ["No DKIM Record"]
+
+
+def analyze_results(domain, spf_result, dmarc_result, dkim_result):
+    """
+    Analyze SPF, DMARC, and DKIM results and provide security assessment.
+    """
+    print(f"\n{'='*60}")
+    print(f"SECURITY ANALYSIS FOR DOMAIN: {domain.upper()}")
+    print(f"{'='*60}")
+    
+    print("\n🔍 SPF ANALYSIS:")
+    print("-" * 20)
+    if isinstance(spf_result, tuple) and len(spf_result) == 2:
+        spf_record, spf_mech = spf_result
+        print(f"  SPF Record: {spf_record}")
+        print(f"  Fail Mechanism: **{spf_mech.upper()}**")
+        
+        status = "✅ PASS" if spf_mech == "pass" else "❌ FAIL"
+        recommendation = ""
+        if spf_mech == "hardfail":
+            recommendation = "Good: Strict SPF enforcement"
+        elif spf_mech == "softfail":
+            recommendation = "Acceptable: Soft enforcement"
+        elif spf_mech == "neutral":
+            recommendation = "⚠️  Weak: Consider ~all or -all"
+        elif spf_mech == "unknown":
+            recommendation = "❌ MISSING: No SPF record found"
+            
+        print(f"  Status: {status}")
+        print(f"  Recommendation: {recommendation}")
+    else:
+        print("  ❌ No SPF record found or error resolving")
+    
+    print("\n🔍 DMARC ANALYSIS:")
+    print("-" * 20)
+    if dmarc_result and not isinstance(dmarc_result, str) or "v=DMARC" in str(dmarc_result):
+        dmarc_str = str(dmarc_result).strip('"') if dmarc_result else "Unknown"
+        print(f"  DMARC Record: {dmarc_str}")
+        
+        pct_match = "pct=" in dmarc_str
+        rua_match = "rua=" in dmarc_str
+        ruf_match = "ruf=" in dmarc_str
+        
+        print(f"  Aggregate Reports (rua): {'✅ YES' if rua_match else '❌ NO'}")
+        print(f"  Forensic Reports (ruf): {'✅ YES' if ruf_match else '❌ NO'}")
+        print(f"  Percentage Coverage: {'✅ CONFIGURED' if pct_match else '⚠️ DEFAULT (100%)'}")
+        print("  Status: ✅ DMARC IMPLEMENTED")
+    else:
+        print("  ❌ No DMARC record found")
+        print("  Recommendation: Implement DMARC immediately!")
+    
+    print("\n🔍 DKIM ANALYSIS:")
+    print("-" * 20)
+    if isinstance(dkim_result, list):
+        if dkim_result == ["No DKIM Record"]:
+            print("  ❌ No DKIM selectors found")
+            print("  Recommendation: Add DKIM selectors (default, google, s1, s2, etc.)")
+        else:
+            print(f"  Found **{len(dkim_result)}** DKIM selector(s):")
+            for result in dkim_result[:5]:  # Show first 5
+                print(f"    • {result}")
+            if len(dkim_result) > 5:
+                print(f"    ... and {len(dkim_result) - 5} more")
+            print("  Status: ✅ DKIM SELECTORS FOUND")
+    else:
+        print("  ⚠️  DKIM result format unexpected")
+    
+    print("\n📊 OVERALL SECURITY SCORE:")
+    print("-" * 20)
+    score = 0
+    status_emoji = "🟢"
+    
+    if isinstance(spf_result, tuple) and spf_result[1] in ["pass", "hardfail", "softfail"]:
+        score += 30
+    if dmarc_result and "v=DMARC" in str(dmarc_result):
+        score += 40
+    if isinstance(dkim_result, list) and dkim_result != ["No DKIM Record"] and dkim_result:
+        score += 30
+    
+    if score >= 90:
+        status_emoji = "🟢 EXCELLENT"
+    elif score >= 70:
+        status_emoji = "🟡 GOOD"
+    elif score >= 40:
+        status_emoji = "🟠 FAIR"
+    else:
+        status_emoji = "🔴 POOR"
+    
+    print(f"  Score: {score}/100 {status_emoji}")
+    print(f"  Coverage: SPF:{'25%' if score >= 25 else '0%'} DMARC:{'40%' if score >= 65 else '0%'} DKIM:{'35%' if score >= 95 else '0%'}")
+    
+    # Action Items
+    print("\n✅ ACTION ITEMS:")
+    print("-" * 20)
+    if not (isinstance(spf_result, tuple) and spf_result[1] in ["pass", "hardfail"]):
+        print("  • Upgrade SPF to -all (hardfail)")
+    if not (dmarc_result and "v=DMARC" in str(dmarc_result)):
+        print("  • Implement DMARC with rua=mailto:reports@yourdomain.com")
+    if dkim_result == ["No DKIM Record"]:
+        print("  • Add DKIM selectors (s1._domainkey, s2._domainkey, etc.)")
+    
+    print(f"{'='*60}\n")
+
 if __name__ == "__main__":
     options = prog_parse()
     domain = options.domain
-    print(domain)
-    print(spf_resolver(domain))
-    print(dmarc_resolver(domain))
-    print(dkim_resolver("enzolenair.fr", False))
+    print(f"Analyzing domain: {domain}")
+    
+    spf_result = spf_resolver(domain)
+    dmarc_result = dmarc_resolver(domain) 
+    dkim_result = dkim_resolver(domain, False)
+    
+    # NEW: Analyze all results together
+    analyze_results(domain, spf_result, dmarc_result, dkim_result)
