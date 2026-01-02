@@ -28,8 +28,50 @@ This tool helps security professionals and domain administrators audit their ema
 ```bash
 pip install -r requirements.txt
 ```
+# Usage
+```bash
+python analyzer.py -d example.com
+```
+# How It Works
+
+## SPF Resolution
+Queries TXT records for v=spf1 and evaluates the fail mechanism:
+- Mechanism
+- Meaning
+- Security Level
+
+-all
+Hardfail
+🟢 Excellent
+
+~all
+Softfail
+🟡 Good
+
+?all
+Neutral
+🟠 Fair
+
++all
+Pass
+🔴 Poor
+
+
+# DMARC Resolution
+Queries _dmarc.{domain} TXT record and validates:
+
+- p= policy (none/quarantine/reject)
+- rua= aggregate reports
+- ruf= forensic reports
+- pct= enforcement percentage
+
+# DKIM Resolution
+Scans 40+ common selectors:
+selector1, selector2, google, k1, k2, mandrill, zendesk1, protonmail...
 
 # Todo list
+
+- Add the possibility to use custom selector with argparse.
 
 - MTA-STS
 
