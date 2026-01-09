@@ -178,6 +178,7 @@ Queries `default._bimi.{domain}` TXT record and validates:
 | 0-39 | F 🔴 |
 
 ## Example Output
+```bash
 🔍 Analyzing domain: example.com
    Please wait...
 
@@ -235,7 +236,7 @@ Queries `default._bimi.{domain}` TXT record and validates:
 💡 RECOMMENDED ACTIONS:
 • Upgrade DMARC policy from p=quarantine to p=reject
 • Consider adding VMC certificate for enhanced BIMI support
-
+```
 ============================================================
 ## Todo List
 
