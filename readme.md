@@ -244,39 +244,8 @@ Queries `default._bimi.{domain}` TXT record and validates:
 - [ ] PDF/Word report export
 - [ ] JSON output format
 - [ ] Historical tracking / comparison
-- [ ] API mode
-- [ ] Recursive include: resolution
-- [ ] DANE/TLSA support
 - [ ] Bulk domain analysis
 
-## Changelog
-
-### V1.5.0 (Current)
-
-#### New Features
-- Full SPF redirect support with chain resolution
-- DNS lookup counting per RFC 7208
-- SPF security analysis (detects +all, ?all, ptr)
-- Verbose mode (-v flag)
-- Null SPF detection (v=spf1 -all)
-
-#### Improvements
-- Better redirect display showing original and final SPF
-- Intermediate redirects tracked and displayed
-- Loop detection in redirect chains
-- Total DNS lookups across redirect chain analyzed
-
-#### Scoring Changes
-- SPF max score: 18 → 20
-- MTA-STS max score: 14 → 12
-- TLS-RPT max score: 10 → 12
-- New penalty for broken redirects (score: 3)
-- Null SPF (v=spf1 -all) now scores 20/20
-
-### V1.4.5 (Previous)
-- Initial BIMI VMC verification
-- MTA-STS policy fetching
-- TLS-RPT support
 
 ## License
 
