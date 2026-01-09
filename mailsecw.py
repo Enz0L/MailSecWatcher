@@ -1,5 +1,5 @@
 # Author: Enzo LE NAIR
-# Version: V1.4.0
+# Version: V1.5.0
 # Descr: Mail DNS-based protection checker
 #   MailSecWatcher - Tool in development
 #   Copyright (C) 2025  Enzo LE NAIR
@@ -37,24 +37,42 @@ AUTHORIZED_VMC_CA = [
 
 BIMI_EKU_OID = "1.3.6.1.5.5.7.3.31"
 
-# Common DKIM selectors with provider associations
 COMMON_SELECTORS = [
-    "default", "dkim", "mail", "email", "selector1", "selector2",
-    "google", "k1", "k2", "s1", "s2", "sig1", "smtp", "mx",
-    "mailjet", "mandrill", "sendgrid", "amazonses", "postmark"
+      "selector1", "selector2", "google", "k1", "k2", "ctct1", "ctct2", "sm", "s1", "s2",
+        "sig1", "litesrv", "zendesk1", "zendesk2", "mail", "email", "dkim", "default", "class",
+        "spop", "spop1024", "bfi", "alpha", "authsmtp", "pmta", "m", "main", "stigmate",
+        "squaremail", "publickey", "proddkim", "ED-DKIM", "care", "0xdeadbeef", "yousendit",
+        "scooby", "postfix.private", "primary", "mandrill", "dkimmail", "protonmail",
+        "protonmail2", "protonmail3"
 ]
+
+
+# =============================================================================
+# ARGUMENT PARSER
+# =============================================================================
 
 def prog_parse():
     parser = ArgumentParser(
-        prog=__file__,
-        description="Analyze SPF, DMARC, DKIM, TLS-RPT, MTA-STS & BIMI",
-        usage="%(prog)s [options] -d domaine_name"
+        prog="mailsecwatcher",
+        description="Mail DNS-based protection checker - Analyzes SPF, DKIM, DMARC, MTA-STS, TLSRPT, and BIMI",
+        usage="%(prog)s [options] -d domain_name"
     )
-    parser.add_argument("-d", "--domain", help="Specify domain name", required=True)
-    parser.add_argument("-s", "--selector", action="store_true", help="Prompt for custom DKIM selector(s)")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
-    options = parser.parse_args()
-    return options
+    parser.add_argument(
+        "-d", "--domain",
+        required=True,
+        help="Domain to analyze"
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose output"
+    )
+    parser.add_argument(
+        "-s", "--selector",
+        action="store_true",
+        help="Prompt for custom DKIM selector(s)"
+    )
+    return parser.parse_args()
 
 
 # =============================================================================
@@ -113,7 +131,7 @@ def analyze_spf_security(spf_record):
         return issues, warnings, is_null_spf
     
     # CRITICAL: +all allows anyone to send
-    if "+all" in spf_lower or spf_lower.endswith(" all"):
+    if "+all" in spf_lower or re.search(r'(?:^v=spf1\s+.*\s|^v=spf1\s+)all(?:\s|$)', spf_lower):
         issues.append({
             'severity': 'CRITICAL',
             'message': '+all allows ANY server to send email as this domain',
@@ -137,57 +155,262 @@ def analyze_spf_security(spf_record):
         })
     
     # Check DNS lookup count
-    lookup_count, lookups = count_spf_dns_lookups(spf_record)
+    lookup_count, _ = count_spf_dns_lookups(spf_record)
     if lookup_count > 10:
         issues.append({
             'severity': 'ERROR',
-            'message': f'SPF exceeds 10 DNS lookup limit ({lookup_count} lookups)',
-            'recommendation': 'Reduce include/redirect mechanisms or flatten SPF record',
-            'details': lookups
+            'message': f'SPF DNS lookups ({lookup_count}) exceeds limit of 10 (RFC 7208)',
+            'recommendation': 'Reduce includes or use ip4/ip6 mechanisms'
         })
     elif lookup_count > 7:
         warnings.append({
             'severity': 'WARNING',
-            'message': f'SPF has {lookup_count}/10 DNS lookups (approaching limit)',
-            'recommendation': 'Consider flattening SPF record to avoid future issues'
+            'message': f'SPF DNS lookups ({lookup_count}) is close to limit of 10',
+            'recommendation': 'Consider reducing includes to avoid future issues'
         })
     
     return issues, warnings, is_null_spf
 
 
-def spf_resolver(domain):
-    mechanism = {
+def resolve_spf_redirect(domain, max_depth=10, visited=None):
+    """
+    Recursively resolve SPF redirect modifier.
+    Returns detailed information about the redirect chain.
+    """
+    if visited is None:
+        visited = []
+    
+    # Protection contre les boucles infinies
+    if domain.lower() in [d.lower() for d in visited]:
+        return {
+            'target': domain,
+            'record': None,
+            'mechanism': 'permerror',
+            'issues': [],
+            'warnings': [],
+            'dns_lookups': 0,
+            'lookup_details': [],
+            'is_null_spf': False,
+            'error': f"Redirect loop detected: {' -> '.join(visited)} -> {domain}",
+            'chain': visited
+        }
+    
+    if max_depth <= 0:
+        return {
+            'target': domain,
+            'record': None,
+            'mechanism': 'permerror',
+            'issues': [],
+            'warnings': [],
+            'dns_lookups': 0,
+            'lookup_details': [],
+            'is_null_spf': False,
+            'error': f"Too many redirects (exceeded max depth): {' -> '.join(visited)}",
+            'chain': visited
+        }
+    
+    visited.append(domain)
+    
+    try:
+        answers = dns.resolver.resolve(domain, 'TXT')
+        spf = None
+        for answer in answers:
+            txt = answer.to_text()
+            if "v=spf1" in txt:
+                spf = txt
+                break
+        
+        if not spf:
+            return {
+                'target': domain,
+                'record': None,
+                'mechanism': 'permerror',
+                'issues': [],
+                'warnings': [],
+                'dns_lookups': 0,
+                'lookup_details': [],
+                'is_null_spf': False,
+                'error': f"No SPF record found at redirect target: {domain}",
+                'chain': visited
+            }
+        
+        spf_clean = spf.replace('"', '').strip()
+        spf_lower = spf_clean.lower()
+        
+        mechanism_map = {
+            "-all": "hardfail",
+            "~all": "softfail",
+            "?all": "neutral",
+            "+all": "pass"
+        }
+        
+        # Check for explicit 'all' mechanism
+        found_mechanism = None
+        for pattern, meca in mechanism_map.items():
+            if pattern in spf_lower:
+                found_mechanism = meca
+                break
+        
+        # Check for bare "all" (defaults to +all)
+        if not found_mechanism and re.search(r'(?:^v=spf1\s+.*\s|^v=spf1\s+)all(?:\s|$)', spf_lower):
+            found_mechanism = "pass"
+        
+        # If we found an 'all' mechanism, analyze this record
+        if found_mechanism:
+            issues, warnings, is_null_spf = analyze_spf_security(spf)
+            lookup_count, lookups = count_spf_dns_lookups(spf)
+            
+            return {
+                'target': domain,
+                'record': spf_clean,
+                'mechanism': found_mechanism,
+                'issues': issues,
+                'warnings': warnings,
+                'dns_lookups': lookup_count,
+                'lookup_details': lookups,
+                'is_null_spf': is_null_spf,
+                'error': None,
+                'chain': visited
+            }
+        
+        # No 'all' found - check for another redirect
+        redirect_match = re.search(r'redirect=([^\s]+)', spf_lower)
+        if redirect_match:
+            next_domain = redirect_match.group(1)
+            nested_result = resolve_spf_redirect(next_domain, max_depth - 1, visited)
+            
+            # Accumulate DNS lookups from this level
+            current_lookups, current_details = count_spf_dns_lookups(spf)
+            
+            if nested_result.get('dns_lookups') is not None:
+                nested_result['dns_lookups'] += current_lookups
+                nested_result['lookup_details'] = current_details + nested_result.get('lookup_details', [])
+            
+            # Store intermediate record for display
+            if 'intermediate_records' not in nested_result:
+                nested_result['intermediate_records'] = []
+            nested_result['intermediate_records'].insert(0, {
+                'domain': domain,
+                'record': spf_clean
+            })
+            
+            return nested_result
+        
+        # No 'all' and no 'redirect' = neutral (RFC 7208 Section 4.7)
+        issues, warnings, is_null_spf = analyze_spf_security(spf)
+        lookup_count, lookups = count_spf_dns_lookups(spf)
+        
+        warnings.append({
+            'severity': 'WARNING',
+            'message': f"No 'all' mechanism in redirect target ({domain}) - defaults to neutral",
+            'recommendation': 'Add -all or ~all to the SPF record'
+        })
+        
+        return {
+            'target': domain,
+            'record': spf_clean,
+            'mechanism': 'neutral',
+            'issues': issues,
+            'warnings': warnings,
+            'dns_lookups': lookup_count,
+            'lookup_details': lookups,
+            'is_null_spf': is_null_spf,
+            'error': None,
+            'chain': visited
+        }
+    
+    except dns.resolver.NXDOMAIN:
+        return {
+            'target': domain,
+            'record': None,
+            'mechanism': 'permerror',
+            'issues': [],
+            'warnings': [],
+            'dns_lookups': 0,
+            'lookup_details': [],
+            'is_null_spf': False,
+            'error': f"Redirect domain does not exist: {domain}",
+            'chain': visited
+        }
+    except dns.resolver.NoAnswer:
+        return {
+            'target': domain,
+            'record': None,
+            'mechanism': 'permerror',
+            'issues': [],
+            'warnings': [],
+            'dns_lookups': 0,
+            'lookup_details': [],
+            'is_null_spf': False,
+            'error': f"No TXT records at redirect target: {domain}",
+            'chain': visited
+        }
+    except dns.resolver.NoNameservers:
+        return {
+            'target': domain,
+            'record': None,
+            'mechanism': 'temperror',
+            'issues': [],
+            'warnings': [],
+            'dns_lookups': 0,
+            'lookup_details': [],
+            'is_null_spf': False,
+            'error': f"No nameservers available for: {domain}",
+            'chain': visited
+        }
+    except Exception as e:
+        return {
+            'target': domain,
+            'record': None,
+            'mechanism': 'temperror',
+            'issues': [],
+            'warnings': [],
+            'dns_lookups': 0,
+            'lookup_details': [],
+            'is_null_spf': False,
+            'error': f"Error resolving {domain}: {str(e)}",
+            'chain': visited
+        }
+
+
+def get_spf_mechanism(spf_record, original_domain=None):
+    """
+    Determine the effective SPF mechanism, following redirects if necessary.
+    Returns: (mechanism, redirect_info)
+    """
+    mechanism_map = {
         "-all": "hardfail",
         "~all": "softfail",
         "?all": "neutral",
         "+all": "pass"
     }
-    try:
-        answers = dns.resolver.resolve(domain, 'TXT')
-        spf = None
-        for answer in answers:
-            if "v=spf1" in answer.to_text():
-                spf = answer.to_text()
-                break
-        if spf:
-            spf_meca = next((meca for pattern, meca in mechanism.items() if pattern in spf), "hardfail")
-            
-            # Analyze security
-            issues, warnings, is_null_spf = analyze_spf_security(spf)
-            lookup_count, lookups = count_spf_dns_lookups(spf)
-            
-            return {
-                'record': spf,
-                'mechanism': spf_meca,
-                'issues': issues,
-                'warnings': warnings,
-                'is_null_spf': is_null_spf,
-                'dns_lookups': lookup_count,
-                'lookup_details': lookups
-            }
-        return None
-    except Exception:
-        return None
+    
+    if not spf_record:
+        return None, None
+    
+    spf_clean = spf_record.replace('"', '').strip()
+    spf_lower = spf_clean.lower()
+    
+    # Check for explicit 'all' mechanism first
+    for pattern, meca in mechanism_map.items():
+        if pattern in spf_lower:
+            return meca, None
+    
+    # Check for bare "all" without qualifier (defaults to +all)
+    if re.search(r'(?:^v=spf1\s+.*\s|^v=spf1\s+)all(?:\s|$)', spf_lower):
+        return "pass", None
+    
+    # No 'all' found - check for redirect modifier
+    redirect_match = re.search(r'redirect=([^\s]+)', spf_lower)
+    if redirect_match:
+        redirect_domain = redirect_match.group(1)
+        redirect_result = resolve_spf_redirect(redirect_domain)
+        return redirect_result.get('mechanism'), redirect_result
+    
+    # No 'all' and no 'redirect' = neutral (RFC 7208 Section 4.7)
+    return "neutral", {
+        'note': "No 'all' mechanism or 'redirect' modifier found - defaults to neutral per RFC 7208"
+    }
 
 
 def has_spf_mechanisms(spf_record):
@@ -197,12 +420,10 @@ def has_spf_mechanisms(spf_record):
     
     spf_lower = spf_record.lower()
     
-    # Direct match mechanisms
     direct_mechanisms = ["include:", "ip4:", "ip6:", "redirect=", "exists:", "ptr"]
     if any(m in spf_lower for m in direct_mechanisms):
         return True
     
-    # Regex patterns for 'a' and 'mx' mechanisms
     a_pattern = r'(?:^v=spf1\s+|\s+)[+\-~?]?a(?:[:\/\s]|$)'
     mx_pattern = r'(?:^v=spf1\s+|\s+)[+\-~?]?mx(?:[:\/\s]|$)'
     
@@ -214,52 +435,140 @@ def has_spf_mechanisms(spf_record):
     return False
 
 
+def spf_resolver(domain):
+    """
+    Resolve and analyze SPF record for a domain.
+    Properly handles redirect modifier according to RFC 7208.
+    """
+    try:
+        answers = dns.resolver.resolve(domain, 'TXT')
+        spf = None
+        for answer in answers:
+            txt = answer.to_text()
+            if "v=spf1" in txt:
+                spf = txt
+                break
+        
+        if spf:
+            spf_clean = spf.replace('"', '').strip()
+            
+            # Analyze security of the original record
+            issues, warnings, is_null_spf = analyze_spf_security(spf)
+            lookup_count, lookups = count_spf_dns_lookups(spf)
+            
+            # Get mechanism (following redirects if necessary)
+            spf_meca, redirect_info = get_spf_mechanism(spf, domain)
+            
+            # Merge redirect analysis if present
+            if redirect_info and redirect_info.get('record'):
+                redirect_issues = redirect_info.get('issues', [])
+                redirect_warnings = redirect_info.get('warnings', [])
+                
+                for issue in redirect_issues:
+                    issue['message'] = f"[Redirect → {redirect_info.get('target')}] {issue['message']}"
+                    issues.append(issue)
+                
+                for warning in redirect_warnings:
+                    warning['message'] = f"[Redirect → {redirect_info.get('target')}] {warning['message']}"
+                    warnings.append(warning)
+                
+                redirect_lookups = redirect_info.get('dns_lookups', 0)
+                total_lookups = lookup_count + redirect_lookups
+                
+                if total_lookups > 10:
+                    issues.append({
+                        'severity': 'ERROR',
+                        'message': f'Total SPF DNS lookups ({total_lookups}) exceeds limit of 10 (local: {lookup_count}, redirect chain: {redirect_lookups})',
+                        'recommendation': 'Reduce includes or use ip4/ip6 mechanisms'
+                    })
+                
+                lookup_count = total_lookups
+                lookups = lookups + redirect_info.get('lookup_details', [])
+            
+            elif redirect_info and redirect_info.get('error'):
+                issues.append({
+                    'severity': 'ERROR',
+                    'message': f"Redirect error: {redirect_info['error']}",
+                    'recommendation': 'Verify the redirect target domain has a valid SPF record'
+                })
+            
+            elif redirect_info and redirect_info.get('note'):
+                warnings.append({
+                    'severity': 'WARNING',
+                    'message': redirect_info['note'],
+                    'recommendation': 'Add explicit -all or ~all mechanism'
+                })
+            
+            return {
+                'record': spf_clean,
+                'mechanism': spf_meca,
+                'issues': issues,
+                'warnings': warnings,
+                'is_null_spf': is_null_spf,
+                'dns_lookups': lookup_count,
+                'lookup_details': lookups,
+                'redirect_info': redirect_info
+            }
+        return None
+    except dns.resolver.NXDOMAIN:
+        return None
+    except dns.resolver.NoAnswer:
+        return None
+    except Exception:
+        return None
+
+
 def calculate_spf_score(spf_result):
-    """Calculate SPF score with security checks."""
+    """Calculate SPF score with security checks and redirect handling."""
     if not spf_result:
         return 0
     
-    # Handle dict format (new) or tuple format (legacy)
     if isinstance(spf_result, dict):
         spf_record = spf_result.get('record')
         spf_mechanism = spf_result.get('mechanism')
         issues = spf_result.get('issues', [])
         is_null_spf = spf_result.get('is_null_spf', False)
+        redirect_info = spf_result.get('redirect_info')
     else:
-        # Legacy tuple format
         spf_record, spf_mechanism = spf_result
         issues = []
         is_null_spf = False
+        redirect_info = None
     
     if not spf_record:
         return 0
     
-    # CRITICAL issues = 0 score
     critical_issues = [i for i in issues if i.get('severity') == 'CRITICAL']
     if critical_issues:
         return 0
     
-    # Null SPF (v=spf1 -all) = perfect for non-sending domain
+    if redirect_info and redirect_info.get('error'):
+        return 3
+    
     if is_null_spf:
         return 20
     
-    # DNS lookup exceeded = major penalty
+    if redirect_info and redirect_info.get('is_null_spf'):
+        return 20
+    
     error_issues = [i for i in issues if i.get('severity') == 'ERROR']
     if error_issues:
-        return 5  # Only base points
+        return 5
     
-    score = 5  # Record exists
+    score = 5
     
     if spf_mechanism == "hardfail":
         score += 12
     elif spf_mechanism == "softfail":
         score += 7
     elif spf_mechanism == "neutral":
-        score += 3
+        score += 2
     elif spf_mechanism == "pass":
         score += 0
+    elif spf_mechanism in ["permerror", "temperror"]:
+        score += 0
     
-    if has_spf_mechanisms(spf_record):
+    if has_spf_mechanisms(spf_result.get('record', '')):
         score += 3
     
     return min(score, 20)
@@ -269,30 +578,16 @@ def calculate_spf_score(spf_result):
 # DMARC FUNCTIONS
 # =============================================================================
 
-def dmarc_resolver(domain):
-    try:
-        dmarc_domain = f"_dmarc.{domain}"
-        answers = dns.resolver.resolve(dmarc_domain, 'TXT')
-        for answer in answers:
-            if "v=DMARC1" in answer.to_text():
-                dmarc = answer.to_text()
-                return dmarc
-        return None
-    except Exception:
-        return None
-
-
 def parse_dmarc_tags(dmarc_record):
     """Parse DMARC record and return tags with effective values (including defaults)."""
     if not dmarc_record:
         return {}
     
-    # RFC 7489 default values
     defaults = {
-        "p": None,        # Required, no default
-        "sp": None,       # Defaults to p= value
-        "adkim": "r",     # Relaxed
-        "aspf": "r",      # Relaxed
+        "p": None,
+        "sp": None,
+        "adkim": "r",
+        "aspf": "r",
         "pct": "100",
         "fo": "0",
         "ri": "86400",
@@ -308,178 +603,128 @@ def parse_dmarc_tags(dmarc_record):
             key, value = part.split('=', 1)
             tags[key.strip().lower()] = value.strip()
     
-    # Apply defaults for missing tags
-    result = {
-        "explicit": tags.copy(),
-        "effective": {}
+    effective = defaults.copy()
+    for key in tags:
+        effective[key] = tags[key]
+    
+    if "sp" not in tags and "p" in tags:
+        effective["sp"] = tags["p"]
+    
+    return {
+        "explicit": tags,
+        "effective": effective
     }
-    
-    # Set effective values
-    for key, default in defaults.items():
-        if key in tags:
-            result["effective"][key] = tags[key]
-        elif key == "sp" and "p" in tags:
-            # sp defaults to p value
-            result["effective"]["sp"] = tags["p"]
-        elif default is not None:
-            result["effective"][key] = default
-    
-    # Copy p if present
-    if "p" in tags:
-        result["effective"]["p"] = tags["p"]
-    
-    # Extract rua and ruf
-    if "rua" in tags:
-        result["effective"]["rua"] = tags["rua"]
-    if "ruf" in tags:
-        result["effective"]["ruf"] = tags["ruf"]
-    
-    return result
+
+
+def dmarc_resolver(domain):
+    """Resolve DMARC record for a domain."""
+    try:
+        answers = dns.resolver.resolve(f"_dmarc.{domain}", 'TXT')
+        for answer in answers:
+            txt = answer.to_text().replace('"', '').strip()
+            if "v=DMARC1" in txt:
+                return txt
+        return None
+    except dns.resolver.NXDOMAIN:
+        return None
+    except dns.resolver.NoAnswer:
+        return None
+    except Exception:
+        return None
 
 
 def calculate_dmarc_score(dmarc_result):
+    """Calculate DMARC score based on policy configuration."""
     if not dmarc_result:
         return 0
     
     parsed = parse_dmarc_tags(dmarc_result)
+    if not parsed:
+        return 0
+    
     effective = parsed.get("effective", {})
     explicit = parsed.get("explicit", {})
     
-    score = 5  # Record exists
+    score = 2
     
-    # Policy scoring
-    policy = effective.get("p", "").lower()
+    policy = effective.get("p", "none").lower()
     if policy == "reject":
         score += 10
     elif policy == "quarantine":
         score += 7
     elif policy == "none":
-        score += 1  # Reduced from 3 - monitoring only, no protection
+        score += 0
     
-    # Reporting
-    if "rua" in explicit:
+    sp = effective.get("sp", "none").lower()
+    if sp == "reject":
         score += 5
-    if "ruf" in explicit:
+    elif sp == "quarantine":
         score += 3
+    elif sp == "none":
+        score += 0
     
-    # Explicit subdomain policy
-    if "sp" in explicit:
+    if "rua" in explicit:
+        score += 4
+    
+    if "ruf" in explicit:
         score += 2
     
-    # pct=100
-    if effective.get("pct") == "100":
+    if effective.get("adkim") == "s":
+        score += 2
+    
+    if effective.get("aspf") == "s":
         score += 2
     
     return min(score, 27)
-
-
-def check_dmarc_compliance(dmarc_record):
-    if not dmarc_record:
-        return False
-    dmarc_lower = dmarc_record.lower()
-    if "p=reject" in dmarc_lower or "p=quarantine" in dmarc_lower:
-        return True
-    return False
 
 
 # =============================================================================
 # DKIM FUNCTIONS
 # =============================================================================
 
-def get_smart_selectors(domain, mx_records=None):
-    """Generate smart DKIM selectors based on domain and MX records."""
-    selectors = set(COMMON_SELECTORS)
+def dkim_resolver(domain, custom_selectors=None):
+    """Resolve DKIM records for a domain using common selectors."""
+    selectors_to_check = COMMON_SELECTORS.copy()
     
-    # Domain-based selectors
-    domain_parts = domain.split('.')
-    if domain_parts:
-        selectors.add(domain_parts[0])
-        selectors.add(domain.replace('.', ''))
+    if custom_selectors:
+        for selector in custom_selectors:
+            if selector not in selectors_to_check:
+                selectors_to_check.insert(0, selector)
     
-    # Date-based selectors
-    current_year = datetime.now().year
-    selectors.add(f"s{current_year}")
-    selectors.add(f"selector{current_year}")
-    selectors.add(f"dkim{current_year}")
+    found_dkim = []
     
-    # MX-based selectors
-    if mx_records:
-        for mx in mx_records:
-            mx_lower = mx.lower()
-            if "google" in mx_lower or "gmail" in mx_lower:
-                selectors.add("google")
-                selectors.add("20161025")
-                selectors.add("20230601")
-            elif "outlook" in mx_lower or "microsoft" in mx_lower:
-                selectors.add("selector1")
-                selectors.add("selector2")
-            elif "mimecast" in mx_lower:
-                selectors.add("mimecast20190104")
-                selectors.add("mimecast")
-            elif "protonmail" in mx_lower:
-                selectors.add("protonmail")
-                selectors.add("protonmail2")
-                selectors.add("protonmail3")
-            elif "zoho" in mx_lower:
-                selectors.add("zoho")
-                selectors.add("zmail")
-    
-    return list(selectors)
-
-
-def get_mx_records(domain):
-    """Retrieve MX records for a domain."""
-    try:
-        answers = dns.resolver.resolve(domain, 'MX')
-        return [str(answer.exchange).lower() for answer in answers]
-    except Exception:
-        return []
-
-
-def dkim_resolver(domain, prompt_selector=False):
-    results = []
-    
-    if prompt_selector:
-        custom = input("Enter custom DKIM selector(s) separated by commas: ")
-        selectors = [s.strip() for s in custom.split(',') if s.strip()]
-    else:
-        # Use smart selector discovery
-        mx_records = get_mx_records(domain)
-        selectors = get_smart_selectors(domain, mx_records)
-    
-    for selector in selectors:
-        dkim_domain = f"{selector}._domainkey.{domain}"
-        
+    for selector in selectors_to_check:
         try:
-            answers = dns.resolver.resolve(dkim_domain, "CNAME")
+            dkim_domain = f"{selector}._domainkey.{domain}"
+            answers = dns.resolver.resolve(dkim_domain, 'TXT')
             for answer in answers:
-                results.append({
-                    "selector": selector,
-                    "record": answer.to_text(),
-                    "type": "CNAME"
-                })
-        except Exception:
-            pass
-        
-        try:
-            answers = dns.resolver.resolve(dkim_domain, "TXT")
-            for answer in answers:
-                txt_value = answer.to_text()
-                if "v=DKIM1" in txt_value or "k=" in txt_value or "p=" in txt_value:
-                    results.append({
+                txt = answer.to_text().replace('"', '').strip()
+                if "v=DKIM1" in txt or "k=" in txt or "p=" in txt:
+                    found_dkim.append({
                         "selector": selector,
-                        "record": txt_value,
-                        "type": "TXT"
+                        "record": txt
                     })
+                    break
         except Exception:
-            pass
+            continue
     
-    return results if results else None
+    return found_dkim if found_dkim else None
 
 
 def calculate_dkim_score(dkim_result):
-    if dkim_result:
+    """Calculate DKIM score based on found selectors."""
+    if not dkim_result:
+        return 0
+    
+    count = len(dkim_result)
+    
+    if count >= 3:
         return 21
+    elif count == 2:
+        return 17
+    elif count == 1:
+        return 12
+    
     return 0
 
 
@@ -487,183 +732,71 @@ def calculate_dkim_score(dkim_result):
 # MTA-STS FUNCTIONS
 # =============================================================================
 
-def validate_mta_sts_policy(domain, policy_content, mx_records):
-    """Validate MTA-STS policy against RFC 8461."""
-    issues = []
-    warnings = []
-    
-    if not policy_content:
-        return issues, warnings
-    
-    lines = policy_content.strip().split('\n')
-    policy_data = {}
-    policy_mx = []
-    
-    for line in lines:
-        line = line.strip()
-        if ':' in line:
-            key, value = line.split(':', 1)
-            key = key.strip().lower()
-            value = value.strip()
-            if key == 'mx':
-                policy_mx.append(value)
-            else:
-                policy_data[key] = value
-    
-    # Check version
-    if policy_data.get('version') != 'STSv1':
-        issues.append({
-            'severity': 'ERROR',
-            'message': f"Invalid or missing version (found: {policy_data.get('version', 'none')})",
-            'recommendation': 'Set version: STSv1'
-        })
-    
-    # Check mode
-    mode = policy_data.get('mode', '')
-    if mode not in ['enforce', 'testing', 'none']:
-        issues.append({
-            'severity': 'ERROR',
-            'message': f"Invalid mode: {mode}",
-            'recommendation': 'Set mode to enforce, testing, or none'
-        })
-    
-    # Check max_age
-    max_age = policy_data.get('max_age', '0')
-    try:
-        max_age_int = int(max_age)
-        if max_age_int < 86400:
-            warnings.append({
-                'severity': 'WARNING',
-                'message': f"max_age too short ({max_age}s), minimum 1 day (86400s) recommended",
-                'recommendation': 'Set max_age to at least 86400 (1 day), recommended 604800 (1 week)'
-            })
-        elif max_age_int < 604800:
-            warnings.append({
-                'severity': 'INFO',
-                'message': f"max_age is {max_age}s, consider 1 week (604800s) for production",
-                'recommendation': 'Increase max_age for better caching'
-            })
-    except ValueError:
-        issues.append({
-            'severity': 'ERROR',
-            'message': f"Invalid max_age value: {max_age}",
-            'recommendation': 'Set max_age to a numeric value in seconds'
-        })
-    
-    # Check MX coverage
-    if mx_records and policy_mx:
-        for mx in mx_records:
-            mx_clean = mx.rstrip('.').lower()
-            covered = False
-            for pattern in policy_mx:
-                pattern_clean = pattern.lower()
-                if pattern_clean.startswith('*.'):
-                    # Wildcard match
-                    wildcard_base = pattern_clean[2:]
-                    if mx_clean.endswith(wildcard_base) or mx_clean == wildcard_base.lstrip('.'):
-                        covered = True
-                        break
-                elif mx_clean == pattern_clean or mx_clean == pattern_clean.rstrip('.'):
-                    covered = True
-                    break
-            
-            if not covered:
-                issues.append({
-                    'severity': 'ERROR',
-                    'message': f"MX '{mx_clean}' not covered by MTA-STS policy",
-                    'recommendation': f"Add 'mx: {mx_clean}' or appropriate wildcard to policy"
-                })
-    
-    return issues, warnings
-
-
 def mta_sts_resolver(domain):
+    """Resolve and analyze MTA-STS configuration for a domain."""
     result = {
-        "dns_record": None,
-        "policy": None,
-        "mode": None,
-        "mx": [],
-        "max_age": None,
-        "version": None,
-        "issues": [],
-        "warnings": [],
-        "https_valid": None
+        'record': None,
+        'policy': False,
+        'policy_content': None,
+        'issues': [],
+        'warnings': []
     }
     
-    # Get MX records for validation
-    mx_records = get_mx_records(domain)
-    
     try:
-        mta_sts_domain = f"_mta-sts.{domain}"
-        answers = dns.resolver.resolve(mta_sts_domain, 'TXT')
+        answers = dns.resolver.resolve(f"_mta-sts.{domain}", 'TXT')
         for answer in answers:
-            if "v=STSv1" in answer.to_text():
-                result["dns_record"] = answer.to_text()
+            txt = answer.to_text().replace('"', '').strip()
+            if "v=STSv1" in txt:
+                result['record'] = txt
                 break
     except Exception:
-        pass
+        return result
     
-    try:
-        policy_url = f"https://mta-sts.{domain}/.well-known/mta-sts.txt"
-        response = requests.get(policy_url, timeout=10, verify=True)
-        result["https_valid"] = True
-        
-        if response.status_code == 200:
-            result["policy"] = response.text
-            lines = response.text.strip().split('\n')
-            for line in lines:
-                line = line.strip()
-                if line.startswith("version:"):
-                    result["version"] = line.split(":")[1].strip()
-                elif line.startswith("mode:"):
-                    result["mode"] = line.split(":")[1].strip()
-                elif line.startswith("mx:"):
-                    result["mx"].append(line.split(":")[1].strip())
-                elif line.startswith("max_age:"):
-                    result["max_age"] = line.split(":")[1].strip()
-            
-            # Validate policy
-            issues, warnings = validate_mta_sts_policy(domain, result["policy"], mx_records)
-            result["issues"] = issues
-            result["warnings"] = warnings
-    except requests.exceptions.SSLError:
-        result["https_valid"] = False
-        result["issues"].append({
-            'severity': 'CRITICAL',
-            'message': 'MTA-STS policy URL has invalid SSL certificate',
-            'recommendation': 'Fix SSL certificate for mta-sts subdomain'
-        })
-    except Exception:
-        pass
+    if result['record']:
+        try:
+            policy_url = f"https://mta-sts.{domain}/.well-known/mta-sts.txt"
+            response = requests.get(policy_url, timeout=10)
+            if response.status_code == 200:
+                result['policy'] = True
+                result['policy_content'] = response.text
+                
+                if 'mode:' not in response.text.lower():
+                    result['issues'].append({
+                        'message': 'MTA-STS policy missing mode directive'
+                    })
+                elif 'mode: none' in response.text.lower():
+                    result['warnings'].append({
+                        'message': 'MTA-STS mode is set to none (no enforcement)'
+                    })
+                elif 'mode: testing' in response.text.lower():
+                    result['warnings'].append({
+                        'message': 'MTA-STS is in testing mode (not enforcing)'
+                    })
+        except Exception:
+            result['issues'].append({
+                'message': 'Could not fetch MTA-STS policy file'
+            })
     
     return result
 
 
 def calculate_mta_sts_score(mta_sts_result):
-    score = 0
-    
-    # Critical issues = 0 score
-    critical_issues = [i for i in mta_sts_result.get("issues", []) if i.get('severity') == 'CRITICAL']
-    if critical_issues:
+    """Calculate MTA-STS score."""
+    if not mta_sts_result or not mta_sts_result.get('record'):
         return 0
     
-    if mta_sts_result["dns_record"]:
+    score = 4
+    
+    if mta_sts_result.get('policy'):
         score += 4
-    
-    if mta_sts_result["policy"]:
-        score += 3
-        if mta_sts_result["mode"] == "enforce":
-            score += 5
-        elif mta_sts_result["mode"] == "testing":
-            score += 2
-        if mta_sts_result["mx"]:
+        
+        policy_content = mta_sts_result.get('policy_content', '').lower()
+        if 'mode: enforce' in policy_content:
+            score += 4
+        elif 'mode: testing' in policy_content:
             score += 2
     
-    # Deduct for errors (non-critical)
-    error_issues = [i for i in mta_sts_result.get("issues", []) if i.get('severity') == 'ERROR']
-    score -= len(error_issues) * 2
-    
-    return max(0, min(score, 14))
+    return min(score, 12)
 
 
 # =============================================================================
@@ -671,116 +804,126 @@ def calculate_mta_sts_score(mta_sts_result):
 # =============================================================================
 
 def tlsrpt_resolver(domain):
+    """Resolve TLS-RPT record for a domain."""
     result = {
-        "record": None,
-        "rua": None
+        'record': None,
+        'rua': None
     }
+    
     try:
-        tlsrpt_domain = f"_smtp._tls.{domain}"
-        answers = dns.resolver.resolve(tlsrpt_domain, 'TXT')
+        answers = dns.resolver.resolve(f"_smtp._tls.{domain}", 'TXT')
         for answer in answers:
-            record = answer.to_text()
-            if "v=TLSRPTv1" in record:
-                result["record"] = record
-                if "rua=" in record:
-                    rua_part = record.split("rua=")[1]
-                    result["rua"] = rua_part.split(";")[0].strip().strip('"')
+            txt = answer.to_text().replace('"', '').strip()
+            if "v=TLSRPTv1" in txt:
+                result['record'] = txt
+                
+                rua_match = re.search(r'rua=([^\s;]+)', txt)
+                if rua_match:
+                    result['rua'] = rua_match.group(1)
                 break
     except Exception:
         pass
+    
     return result
 
 
 def calculate_tlsrpt_score(tlsrpt_result):
-    score = 0
-    if tlsrpt_result["record"]:
-        score += 5
-        if tlsrpt_result["rua"]:
-            score += 5
-    return min(score, 10)
+    """Calculate TLS-RPT score."""
+    if not tlsrpt_result or not tlsrpt_result.get('record'):
+        return 0
+    
+    score = 6
+    
+    if tlsrpt_result.get('rua'):
+        score += 6
+    
+    return min(score, 12)
 
 
 # =============================================================================
 # BIMI FUNCTIONS
 # =============================================================================
 
-def fetch_vmc_certificate(vmc_url):
-    try:
-        response = requests.get(vmc_url, timeout=15)
-        if response.status_code != 200:
-            return None, f"HTTP {response.status_code}"
-        pem_data = response.content
-        certificate = x509.load_pem_x509_certificate(pem_data, default_backend())
-        return certificate, None
-    except requests.exceptions.Timeout:
-        return None, "Timeout"
-    except requests.exceptions.RequestException as e:
-        return None, f"Request error: {str(e)}"
-    except ValueError as e:
-        return None, f"Certificate parse error: {str(e)}"
-    except Exception as e:
-        return None, f"Unknown error: {str(e)}"
+def check_dmarc_compliance(dmarc_result):
+    """Check if DMARC policy is BIMI-compliant (quarantine or reject)."""
+    if not dmarc_result:
+        return False
+    
+    parsed = parse_dmarc_tags(dmarc_result)
+    if not parsed:
+        return False
+    
+    policy = parsed.get("effective", {}).get("p", "none").lower()
+    return policy in ["quarantine", "reject"]
 
 
 def verify_vmc_validity(certificate):
+    """Verify VMC certificate validity dates."""
     now = datetime.now(timezone.utc)
-    not_before = certificate.not_valid_before_utc
-    not_after = certificate.not_valid_after_utc
+    not_before = certificate.not_valid_before_utc if hasattr(certificate, 'not_valid_before_utc') else certificate.not_valid_before.replace(tzinfo=timezone.utc)
+    not_after = certificate.not_valid_after_utc if hasattr(certificate, 'not_valid_after_utc') else certificate.not_valid_after.replace(tzinfo=timezone.utc)
+    
     is_valid = not_before <= now <= not_after
     days_remaining = (not_after - now).days if is_valid else 0
+    
     return {
         "not_before": not_before.isoformat(),
         "not_after": not_after.isoformat(),
         "is_valid": is_valid,
-        "days_remaining": days_remaining,
-        "is_expired": now > not_after,
-        "not_yet_valid": now < not_before
+        "days_remaining": days_remaining
     }
 
 
 def verify_vmc_issuer(certificate):
-    issuer = certificate.issuer.rfc4514_string()
-    is_authorized = any(ca.lower() in issuer.lower() for ca in AUTHORIZED_VMC_CA)
-    ca_name = "Unknown"
-    for ca in AUTHORIZED_VMC_CA:
-        if ca.lower() in issuer.lower():
-            ca_name = ca
-            break
-    return {
-        "issuer": issuer,
-        "ca_name": ca_name,
-        "is_authorized": is_authorized
-    }
+    """Verify VMC is issued by an authorized CA."""
+    try:
+        issuer_cn = None
+        for attr in certificate.issuer:
+            if attr.oid.dotted_string == "2.5.4.3":
+                issuer_cn = attr.value
+                break
+        
+        if not issuer_cn:
+            issuer_cn = certificate.issuer.rfc4514_string()
+        
+        is_authorized = any(ca.lower() in issuer_cn.lower() for ca in AUTHORIZED_VMC_CA)
+        
+        return {
+            "issuer": issuer_cn,
+            "is_authorized": is_authorized
+        }
+    except Exception:
+        return {
+            "issuer": "Unknown",
+            "is_authorized": False
+        }
 
 
 def verify_vmc_domain(certificate, domain):
-    domains_in_cert = []
-    for attr in certificate.subject:
-        if attr.oid == x509.oid.NameOID.COMMON_NAME:
-            domains_in_cert.append(attr.value.lower())
+    """Verify VMC covers the domain."""
     try:
         san_ext = certificate.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
-        for name in san_ext.value:
-            if isinstance(name, x509.DNSName):
-                domains_in_cert.append(name.value.lower())
-    except x509.ExtensionNotFound:
-        pass
-    domain_lower = domain.lower()
-    domain_match = False
-    for cert_domain in domains_in_cert:
-        if cert_domain == domain_lower:
-            domain_match = True
-            break
-        if cert_domain.startswith("*."):
-            wildcard_base = cert_domain[2:]
-            if domain_lower.endswith(wildcard_base):
+        san_domains = [name.value for name in san_ext.value if isinstance(name, x509.DNSName)]
+        
+        domain_match = False
+        for san in san_domains:
+            if san.lower() == domain.lower():
                 domain_match = True
                 break
-    return {
-        "domains_in_cert": domains_in_cert,
-        "target_domain": domain,
-        "domain_match": domain_match
-    }
+            if san.startswith('*.') and domain.lower().endswith(san[1:].lower()):
+                domain_match = True
+                break
+        
+        return {
+            "san_domains": san_domains,
+            "domain_match": domain_match
+        }
+    except Exception:
+        return {
+            "san_domains": [],
+            "domain_match": False,
+            "error": "Could not parse SAN extension"
+        }
 
 
 def verify_vmc_eku(certificate):
@@ -801,6 +944,7 @@ def verify_vmc_eku(certificate):
 
 
 def verify_logo_url(logo_url):
+    """Verify BIMI logo URL."""
     result = {
         "url": logo_url,
         "accessible": False,
@@ -809,9 +953,12 @@ def verify_logo_url(logo_url):
         "is_secure": False,
         "size_bytes": 0
     }
+    
     if not logo_url:
         return result
+    
     result["is_secure"] = logo_url.lower().startswith("https://")
+    
     try:
         response = requests.get(logo_url, timeout=15)
         if response.status_code == 200:
@@ -825,54 +972,64 @@ def verify_logo_url(logo_url):
                 result["is_svg"] = True
     except Exception:
         pass
+    
     return result
 
 
-def bimi_resolver(domain, dmarc_record):
+def fetch_vmc_certificate(vmc_url):
+    """Fetch and parse VMC certificate."""
+    try:
+        response = requests.get(vmc_url, timeout=15)
+        if response.status_code != 200:
+            return None, f"HTTP {response.status_code}"
+        
+        pem_data = response.content
+        
+        if b"-----BEGIN CERTIFICATE-----" in pem_data:
+            cert = x509.load_pem_x509_certificate(pem_data, default_backend())
+            return cert, None
+        else:
+            return None, "Invalid certificate format"
+    except Exception as e:
+        return None, str(e)
+
+
+def bimi_resolver(domain, dmarc_result):
+    """Resolve and analyze BIMI record for a domain."""
     result = {
-        "record": None,
-        "logo_url": None,
-        "vmc_url": None,
-        "dmarc_compliant": False,
-        "logo_check": None,
-        "vmc_check": None
+        'record': None,
+        'logo_url': None,
+        'vmc_url': None,
+        'dmarc_compliant': check_dmarc_compliance(dmarc_result),
+        'logo_check': None,
+        'vmc_check': None
     }
     
-    # Check DMARC compliance
-    result["dmarc_compliant"] = check_dmarc_compliance(dmarc_record)
-    
     try:
-        bimi_domain = f"default._bimi.{domain}"
-        answers = dns.resolver.resolve(bimi_domain, 'TXT')
+        answers = dns.resolver.resolve(f"default._bimi.{domain}", 'TXT')
         for answer in answers:
-            record = answer.to_text()
-            if "v=BIMI1" in record:
-                result["record"] = record
+            txt = answer.to_text().replace('"', '').strip()
+            if "v=BIMI1" in txt:
+                result['record'] = txt
                 
-                # Extract logo URL
-                if "l=" in record:
-                    l_match = re.search(r'l=([^;\s"]+)', record)
-                    if l_match:
-                        result["logo_url"] = l_match.group(1)
+                logo_match = re.search(r'l=([^\s;]+)', txt)
+                if logo_match:
+                    result['logo_url'] = logo_match.group(1)
                 
-                # Extract VMC URL
-                if "a=" in record:
-                    a_match = re.search(r'a=([^;\s"]+)', record)
-                    if a_match:
-                        result["vmc_url"] = a_match.group(1)
+                vmc_match = re.search(r'a=([^\s;]+)', txt)
+                if vmc_match:
+                    result['vmc_url'] = vmc_match.group(1)
                 break
     except Exception:
-        pass
+        return result
     
-    # Verify logo
-    if result["logo_url"]:
-        result["logo_check"] = verify_logo_url(result["logo_url"])
+    if result['logo_url']:
+        result['logo_check'] = verify_logo_url(result['logo_url'])
     
-    # Verify VMC
-    if result["vmc_url"]:
-        cert, error = fetch_vmc_certificate(result["vmc_url"])
+    if result['vmc_url']:
+        cert, error = fetch_vmc_certificate(result['vmc_url'])
         if cert:
-            result["vmc_check"] = {
+            result['vmc_check'] = {
                 "found": True,
                 "validity": verify_vmc_validity(cert),
                 "issuer": verify_vmc_issuer(cert),
@@ -880,7 +1037,7 @@ def bimi_resolver(domain, dmarc_record):
                 "eku": verify_vmc_eku(cert)
             }
         else:
-            result["vmc_check"] = {
+            result['vmc_check'] = {
                 "found": False,
                 "error": error
             }
@@ -889,27 +1046,34 @@ def bimi_resolver(domain, dmarc_record):
 
 
 def calculate_bimi_score(bimi_result):
+    """Calculate BIMI score."""
     score = 0
-    if not bimi_result["record"]:
+    
+    if not bimi_result or not bimi_result.get("record"):
         return 0
+    
     score += 1
-    if bimi_result["dmarc_compliant"]:
+    
+    if bimi_result.get("dmarc_compliant"):
         score += 1
-    if bimi_result["logo_check"]:
-        if bimi_result["logo_check"]["accessible"]:
+    
+    if bimi_result.get("logo_check"):
+        if bimi_result["logo_check"].get("accessible"):
             score += 1
-        if bimi_result["logo_check"]["is_svg"]:
+        if bimi_result["logo_check"].get("is_svg"):
             score += 1
-        if bimi_result["logo_check"]["is_secure"]:
+        if bimi_result["logo_check"].get("is_secure"):
             score += 1
-    if bimi_result["vmc_check"] and bimi_result["vmc_check"]["found"]:
+    
+    if bimi_result.get("vmc_check") and bimi_result["vmc_check"].get("found"):
         vmc = bimi_result["vmc_check"]
-        if vmc["validity"] and vmc["validity"]["is_valid"]:
+        if vmc.get("validity") and vmc["validity"].get("is_valid"):
             score += 1
-        if vmc["issuer"] and vmc["issuer"]["is_authorized"]:
+        if vmc.get("issuer") and vmc["issuer"].get("is_authorized"):
             score += 1
-        if vmc["domain"] and vmc["domain"]["domain_match"]:
+        if vmc.get("domain") and vmc["domain"].get("domain_match"):
             score += 1
+    
     return min(score, 8)
 
 
@@ -918,6 +1082,7 @@ def calculate_bimi_score(bimi_result):
 # =============================================================================
 
 def get_grade(score):
+    """Get letter grade based on score."""
     if score >= 90:
         return "A+", "🟢"
     elif score >= 80:
@@ -935,94 +1100,127 @@ def get_grade(score):
 
 
 def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_result, tlsrpt_result, bimi_result, verbose=False):
+    """Display analysis results."""
     print(f"\n{'='*60}")
     print(f"  EMAIL SECURITY ANALYSIS: {domain}")
     print(f"{'='*60}\n")
-
+    
     spf_score = calculate_spf_score(spf_result)
     dmarc_score = calculate_dmarc_score(dmarc_result)
     dkim_score = calculate_dkim_score(dkim_result)
     mta_sts_score = calculate_mta_sts_score(mta_sts_result)
     tlsrpt_score = calculate_tlsrpt_score(tlsrpt_result)
     bimi_score = calculate_bimi_score(bimi_result)
-
+    
     total_score = spf_score + dmarc_score + dkim_score + mta_sts_score + tlsrpt_score + bimi_score
     grade, emoji = get_grade(total_score)
-
-    # Parse DMARC for display
+    
     dmarc_parsed = parse_dmarc_tags(dmarc_result) if dmarc_result else None
-
+    
     # =========================================================================
-    # SPF DISPLAY
+    # OVERALL SCORE
     # =========================================================================
-    print(f"📧 SPF ({spf_score}/20)")
+    print(f"{emoji} OVERALL SCORE: {total_score}/100 (Grade: {grade})")
+    print(f"\n{'─'*60}")
+    
+    # =========================================================================
+    # SPF DISPLAY - MODIFIÉ POUR AFFICHER LE SPF DU REDIRECT
+    # =========================================================================
+    print(f"\n📧 SPF ({spf_score}/20)")
     if spf_result:
-        spf_record = spf_result.get('record') if isinstance(spf_result, dict) else spf_result[0]
-        spf_mechanism = spf_result.get('mechanism') if isinstance(spf_result, dict) else spf_result[1]
+        print(f"   Record: {spf_result['record']}")
         
-        print(f"   Record: {spf_record}")
-        print(f"   Mechanism: {spf_mechanism}")
+        redirect_info = spf_result.get('redirect_info')
         
-        if isinstance(spf_result, dict):
-            # Show null SPF status
-            if spf_result.get('is_null_spf'):
-                print(f"   ℹ️  Null SPF: Domain configured to send no email")
+        if redirect_info and redirect_info.get('record'):
+            # Affichage avec redirect résolu
+            print(f"   Local mechanism: (none - uses redirect)")
             
-            # Show DNS lookup count
-            dns_lookups = spf_result.get('dns_lookups', 0)
-            lookup_indicator = "✅" if dns_lookups <= 7 else ("⚠️" if dns_lookups <= 10 else "❌")
-            print(f"   DNS Lookups: {dns_lookups}/10 {lookup_indicator}")
+            # Afficher la chaîne de redirects
+            chain = redirect_info.get('chain', [])
+            if chain:
+                print(f"   ↪️  Redirect chain: {' → '.join(chain)}")
             
-            if verbose and spf_result.get('lookup_details'):
-                for lookup in spf_result['lookup_details']:
-                    print(f"      - {lookup['type']}: {lookup['value']}")
+            # TOUJOURS afficher l'enregistrement SPF du redirect (pas seulement en verbose)
+            print(f"   📋 Redirected SPF ({redirect_info.get('target')}):")
+            redirect_record = redirect_info.get('record', '')
+            # Afficher sur plusieurs lignes si trop long
+            if len(redirect_record) > 70:
+                print(f"      {redirect_record[:70]}")
+                remaining = redirect_record[70:]
+                while remaining:
+                    print(f"      {remaining[:70]}")
+                    remaining = remaining[70:]
+            else:
+                print(f"      {redirect_record}")
             
-            # Show issues
-            for issue in spf_result.get('issues', []):
-                severity_icon = "🔴" if issue['severity'] == 'CRITICAL' else "❌"
-                print(f"   {severity_icon} {issue['severity']}: {issue['message']}")
+            print(f"   Effective mechanism: {spf_result['mechanism']} (from redirect)")
             
-            for warning in spf_result.get('warnings', []):
-                print(f"   ⚠️  {warning['severity']}: {warning['message']}")
+            # Afficher les enregistrements intermédiaires si chaîne de redirects
+            if verbose and redirect_info.get('intermediate_records'):
+                print(f"   📑 Intermediate records:")
+                for intermediate in redirect_info['intermediate_records']:
+                    print(f"      {intermediate['domain']}:")
+                    print(f"         {intermediate['record']}")
+        
+        elif redirect_info and redirect_info.get('error'):
+            # Redirect avec erreur
+            print(f"   ↪️  Redirect target: {redirect_info.get('target', 'unknown')}")
+            print(f"   ❌ Redirect error: {redirect_info['error']}")
+            print(f"   Effective mechanism: {spf_result['mechanism']}")
+        
+        else:
+            # Pas de redirect
+            print(f"   Mechanism: {spf_result['mechanism']}")
+        
+        # DNS Lookups
+        lookup_count = spf_result.get('dns_lookups', 0)
+        lookup_icon = "✅" if lookup_count <= 10 else "❌"
+        print(f"   DNS Lookups: {lookup_icon} {lookup_count}/10")
+        
+        if verbose and spf_result.get('lookup_details'):
+            for lookup in spf_result['lookup_details']:
+                print(f"      - {lookup['type']}: {lookup['value']}")
+        
+        # Issues
+        for issue in spf_result.get('issues', []):
+            severity_icon = "🔴" if issue['severity'] == 'CRITICAL' else "❌"
+            print(f"   {severity_icon} {issue['severity']}: {issue['message']}")
+            if verbose and issue.get('recommendation'):
+                print(f"      💡 {issue['recommendation']}")
+        
+        # Warnings
+        for warning in spf_result.get('warnings', []):
+            icon = "⚠️" if warning['severity'] == 'WARNING' else "ℹ️"
+            print(f"   {icon} {warning['message']}")
+            if verbose and warning.get('recommendation'):
+                print(f"      💡 {warning['recommendation']}")
     else:
         print("   ❌ No SPF record found")
-
+    
     # =========================================================================
     # DMARC DISPLAY
     # =========================================================================
-    print(f"\n📧 DMARC ({dmarc_score}/27)")
+    print(f"\n🛡️  DMARC ({dmarc_score}/27)")
     if dmarc_result and dmarc_parsed:
-        print(f"   Record: {dmarc_result}")
-        
         effective = dmarc_parsed.get("effective", {})
         explicit = dmarc_parsed.get("explicit", {})
         
-        # Policy
-        policy = effective.get("p", "none")
-        print(f"   Policy: {policy}")
+        print(f"   Record: {dmarc_result}")
+        print(f"   Policy (p): {effective.get('p', 'none')}")
         
-        # Subdomain policy
-        sp = effective.get("sp", policy)
-        sp_source = "" if "sp" in explicit else " (inherited from p=)"
-        print(f"   Subdomain Policy: {sp}{sp_source}")
+        if "sp" in explicit:
+            print(f"   Subdomain Policy (sp): {effective.get('sp')} (explicit)")
+        else:
+            print(f"   Subdomain Policy (sp): {effective.get('sp', 'none')} (inherited from p)")
         
-        # Alignments
-        adkim = effective.get("adkim", "r")
-        adkim_source = "" if "adkim" in explicit else " (default)"
-        adkim_full = "strict" if adkim == "s" else "relaxed"
-        print(f"   DKIM Alignment: {adkim_full}{adkim_source}")
+        print(f"   DKIM Alignment (adkim): {effective.get('adkim', 'r')} ({'strict' if effective.get('adkim') == 's' else 'relaxed'})")
+        print(f"   SPF Alignment (aspf): {effective.get('aspf', 'r')} ({'strict' if effective.get('aspf') == 's' else 'relaxed'})")
         
-        aspf = effective.get("aspf", "r")
-        aspf_source = "" if "aspf" in explicit else " (default)"
-        aspf_full = "strict" if aspf == "s" else "relaxed"
-        print(f"   SPF Alignment: {aspf_full}{aspf_source}")
+        pct = effective.get('pct', '100')
+        pct_source = "(explicit)" if "pct" in explicit else "(default)"
+        print(f"   Percentage (pct): {pct}% {pct_source}")
         
-        # Percentage
-        pct = effective.get("pct", "100")
-        pct_source = "" if "pct" in explicit else " (default)"
-        print(f"   Percentage: {pct}%{pct_source}")
-        
-        # Reporting
         if "rua" in explicit:
             print(f"   Aggregate Reports (rua): {explicit['rua']}")
         else:
@@ -1034,139 +1232,117 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
             print(f"   Forensic Reports (ruf): ❌ not configured")
     else:
         print("   ❌ No DMARC record found")
-
+    
     # =========================================================================
     # DKIM DISPLAY
     # =========================================================================
-    print(f"\n📧 DKIM ({dkim_score}/21)")
+    print(f"\n🔑 DKIM ({dkim_score}/21)")
     if dkim_result:
-        for entry in dkim_result:
-            print(f"   ✅ Selector: {entry['selector']} ({entry['type']})")
+        print(f"   Found {len(dkim_result)} selector(s):")
+        for dkim in dkim_result:
+            print(f"   ✅ {dkim['selector']}")
             if verbose:
-                print(f"      Record: {entry['record'][:80]}...")
+                record = dkim['record']
+                if len(record) > 80:
+                    print(f"      {record[:80]}...")
+                else:
+                    print(f"      {record}")
     else:
-        print("   ❌ No DKIM selectors found")
-
+        print("   ❌ No DKIM records found (checked common selectors)")
+    
     # =========================================================================
     # MTA-STS DISPLAY
     # =========================================================================
-    print(f"\n🔒 MTA-STS ({mta_sts_score}/14)")
-    if mta_sts_result["dns_record"]:
-        print(f"   DNS: {mta_sts_result['dns_record']}")
+    print(f"\n🔒 MTA-STS ({mta_sts_score}/12)")
+    if mta_sts_result and mta_sts_result.get('record'):
+        print(f"   Record: {mta_sts_result['record']}")
+        if mta_sts_result.get('policy'):
+            print(f"   Policy: ✅ Accessible")
+            if verbose and mta_sts_result.get('policy_content'):
+                for line in mta_sts_result['policy_content'].strip().split('\n')[:5]:
+                    print(f"      {line}")
+        else:
+            print(f"   Policy: ❌ Not accessible")
         
-        if mta_sts_result["https_valid"] is not None:
-            https_status = "✅ Valid" if mta_sts_result["https_valid"] else "❌ Invalid"
-            print(f"   HTTPS Certificate: {https_status}")
-        
-        if mta_sts_result["version"]:
-            print(f"   Version: {mta_sts_result['version']}")
-        if mta_sts_result["mode"]:
-            print(f"   Mode: {mta_sts_result['mode']}")
-        if mta_sts_result["max_age"]:
-            max_age_days = int(mta_sts_result["max_age"]) / 86400
-            print(f"   Max Age: {mta_sts_result['max_age']}s ({max_age_days:.1f} days)")
-        if mta_sts_result["mx"]:
-            print(f"   MX Patterns: {', '.join(mta_sts_result['mx'])}")
-        
-        # Show issues
-        for issue in mta_sts_result.get("issues", []):
-            severity_icon = "🔴" if issue['severity'] == 'CRITICAL' else "❌"
-            print(f"   {severity_icon} {issue['severity']}: {issue['message']}")
-        
-        for warning in mta_sts_result.get("warnings", []):
-            print(f"   ⚠️  {warning['severity']}: {warning['message']}")
+        for issue in mta_sts_result.get('issues', []):
+            print(f"   ❌ {issue['message']}")
+        for warning in mta_sts_result.get('warnings', []):
+            print(f"   ⚠️  {warning['message']}")
     else:
         print("   ❌ No MTA-STS record found")
-
+    
     # =========================================================================
     # TLS-RPT DISPLAY
     # =========================================================================
-    print(f"\n📊 TLS-RPT ({tlsrpt_score}/10)")
-    if tlsrpt_result["record"]:
+    print(f"\n📊 TLS-RPT ({tlsrpt_score}/12)")
+    if tlsrpt_result and tlsrpt_result.get('record'):
         print(f"   Record: {tlsrpt_result['record']}")
-        if tlsrpt_result["rua"]:
-            print(f"   Report URI: {tlsrpt_result['rua']}")
+        if tlsrpt_result.get('rua'):
+            print(f"   Reporting URI: {tlsrpt_result['rua']}")
     else:
         print("   ❌ No TLS-RPT record found")
-
+    
     # =========================================================================
     # BIMI DISPLAY
     # =========================================================================
     print(f"\n🎨 BIMI ({bimi_score}/8)")
-    if bimi_result["record"]:
+    if bimi_result and bimi_result.get('record'):
         print(f"   Record: {bimi_result['record']}")
-        dmarc_status = "✅" if bimi_result["dmarc_compliant"] else "❌"
-        print(f"   DMARC Compliant: {dmarc_status}")
+        print(f"   DMARC Compliant: {'✅' if bimi_result.get('dmarc_compliant') else '❌'}")
         
-        if bimi_result["logo_check"]:
-            logo = bimi_result["logo_check"]
-            logo_status = "✅" if logo["accessible"] else "❌"
-            svg_status = "✅" if logo["is_svg"] else "❌"
-            secure_status = "✅" if logo["is_secure"] else "❌"
-            print(f"   Logo: {logo_status} Accessible | {svg_status} SVG | {secure_status} HTTPS")
-            if logo["size_bytes"]:
-                print(f"   Logo Size: {logo['size_bytes']} bytes")
+        if bimi_result.get('logo_check'):
+            logo = bimi_result['logo_check']
+            print(f"   Logo URL: {logo.get('url', 'N/A')}")
+            print(f"   Logo Accessible: {'✅' if logo.get('accessible') else '❌'}")
+            print(f"   Logo is SVG: {'✅' if logo.get('is_svg') else '❌'}")
+            print(f"   Logo via HTTPS: {'✅' if logo.get('is_secure') else '❌'}")
         
-        if bimi_result["vmc_check"]:
-            vmc = bimi_result["vmc_check"]
-            if vmc.get("found"):
-                validity_status = "✅" if vmc["validity"]["is_valid"] else "❌"
-                issuer_status = "✅" if vmc["issuer"]["is_authorized"] else "❌"
-                domain_status = "✅" if vmc["domain"]["domain_match"] else "❌"
-                print(f"   VMC: {validity_status} Valid | {issuer_status} {vmc['issuer']['ca_name']} | {domain_status} Domain Match")
-                if vmc["validity"]["is_valid"]:
-                    print(f"   VMC Expires: {vmc['validity']['days_remaining']} days remaining")
-                if vmc.get("eku"):
-                    eku_status = "✅" if vmc["eku"]["has_bimi_eku"] else "❌"
-                    print(f"   BIMI EKU: {eku_status}")
+        if bimi_result.get('vmc_check'):
+            vmc = bimi_result['vmc_check']
+            if vmc.get('found'):
+                print(f"   VMC Certificate: ✅ Found")
+                if vmc.get('validity'):
+                    v = vmc['validity']
+                    print(f"   VMC Valid: {'✅' if v.get('is_valid') else '❌'} (expires in {v.get('days_remaining', 0)} days)")
+                if vmc.get('issuer'):
+                    i = vmc['issuer']
+                    print(f"   VMC Issuer: {i.get('issuer', 'Unknown')} ({'✅ Authorized' if i.get('is_authorized') else '❌ Not authorized'})")
+                if vmc.get('domain'):
+                    d = vmc['domain']
+                    print(f"   VMC Domain Match: {'✅' if d.get('domain_match') else '❌'}")
             else:
-                print(f"   VMC: ❌ Error - {vmc.get('error', 'Unknown error')}")
+                print(f"   VMC Certificate: ❌ {vmc.get('error', 'Not found')}")
     else:
         print("   ❌ No BIMI record found")
-
-    # =========================================================================
-    # FINAL SCORE
-    # =========================================================================
-    print(f"\n{'='*60}")
-    print(f"  TOTAL SCORE: {total_score}/100 - Grade: {emoji} {grade}")
-    print(f"{'='*60}")
-
-    print(f"\n📊 Score Breakdown:")
-    print(f"   SPF:     {spf_score:2}/20  {'█' * (spf_score // 2)}{'░' * (10 - spf_score // 2)}")
-    print(f"   DMARC:   {dmarc_score:2}/27  {'█' * (dmarc_score * 10 // 27)}{'░' * (10 - dmarc_score * 10 // 27)}")
-    print(f"   DKIM:    {dkim_score:2}/21  {'█' * (dkim_score * 10 // 21)}{'░' * (10 - dkim_score * 10 // 21)}")
-    print(f"   MTA-STS: {mta_sts_score:2}/14  {'█' * (mta_sts_score * 10 // 14)}{'░' * (10 - mta_sts_score * 10 // 14)}")
-    print(f"   TLS-RPT: {tlsrpt_score:2}/10  {'█' * tlsrpt_score}{'░' * (10 - tlsrpt_score)}")
-    print(f"   BIMI:    {bimi_score:2}/8   {'█' * (bimi_score * 10 // 8)}{'░' * (10 - bimi_score * 10 // 8)}")
-
+    
     # =========================================================================
     # RECOMMENDATIONS
     # =========================================================================
-    print(f"\n💡 Recommendations:")
+    print(f"\n{'─'*60}")
+    print("📋 RECOMMENDATIONS:")
+    
     actions = []
-
+    
     # SPF recommendations
-    if spf_result:
-        if isinstance(spf_result, dict):
-            # Critical issues first
-            for issue in spf_result.get('issues', []):
-                actions.append(f"• 🔴 {issue['recommendation']}")
-            
-            # Warnings
-            for warning in spf_result.get('warnings', []):
-                actions.append(f"• ⚠️  {warning['recommendation']}")
-            
-            # Standard recommendations
-            if not spf_result.get('is_null_spf'):
-                if spf_result.get('mechanism') == "softfail":
-                    actions.append("• Harden SPF: change '~all' to '-all' (hardfail)")
-        else:
-            # Legacy format
-            if spf_result[1] == "softfail":
-                actions.append("• Harden SPF: change '~all' to '-all' (hardfail)")
+    if not spf_result:
+        actions.append("• 🔴 Implement SPF record to prevent email spoofing")
     else:
-        actions.append("• Implement SPF record with '-all' (hardfail)")
-
+        if spf_result.get('mechanism') == 'softfail':
+            actions.append("• Consider upgrading SPF from ~all (softfail) to -all (hardfail)")
+        elif spf_result.get('mechanism') == 'neutral':
+            actions.append("• 🔴 SPF defaults to neutral - add -all or ~all for protection")
+        elif spf_result.get('mechanism') == 'pass':
+            actions.append("• 🔴 CRITICAL: Remove +all from SPF - it allows anyone to spoof your domain")
+        
+        if spf_result.get('redirect_info') and spf_result['redirect_info'].get('error'):
+            actions.append("• 🔴 Fix SPF redirect - target domain has no valid SPF record")
+        
+        lookup_count = spf_result.get('dns_lookups', 0)
+        if lookup_count > 10:
+            actions.append(f"• 🔴 Reduce SPF DNS lookups from {lookup_count} to 10 or fewer")
+        elif lookup_count > 7:
+            actions.append(f"• Consider reducing SPF DNS lookups ({lookup_count}/10) to avoid future issues")
+    
     # DMARC recommendations
     if dmarc_result and dmarc_parsed:
         effective = dmarc_parsed.get("effective", {})
@@ -1185,7 +1361,7 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
             actions.append("• 🔴 Add DMARC aggregate reporting (rua=mailto:...)")
         
         if "ruf" not in explicit:
-            actions.append("• Consider adding DMARC forensic reporting (ruf=)")
+            actions.append("• Consider adding DMARC forensic reporting (ruf=mailto:...)")
         
         if effective.get("adkim") != "s":
             actions.append("• Consider strict DKIM alignment (adkim=s) for enhanced security")
@@ -1193,57 +1369,35 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
             actions.append("• Consider strict SPF alignment (aspf=s) for enhanced security")
     else:
         actions.append("• 🔴 Implement DMARC record with p=reject policy")
-
+    
     # DKIM recommendations
     if dkim_score == 0:
-        actions.append("• Implement DKIM signing for outgoing emails")
-
+        actions.append("• 🔴 Implement DKIM signing for outgoing emails")
+    
     # MTA-STS recommendations
-    if mta_sts_score < 14:
-        if mta_sts_score == 0:
-            actions.append("• Implement MTA-STS (DNS record + policy file)")
-        else:
-            # Show specific MTA-STS issues
-            for issue in mta_sts_result.get("issues", []):
-                actions.append(f"• {issue['recommendation']}")
-            for warning in mta_sts_result.get("warnings", []):
-                actions.append(f"• {warning['recommendation']}")
-            
-            if mta_sts_result["mode"] != "enforce":
-                actions.append("• Set MTA-STS mode to 'enforce'")
-
+    if not mta_sts_result or not mta_sts_result.get('record'):
+        actions.append("• Consider implementing MTA-STS for transport security")
+    elif mta_sts_result.get('policy_content'):
+        if 'mode: testing' in mta_sts_result['policy_content'].lower():
+            actions.append("• Upgrade MTA-STS from testing to enforce mode")
+    
     # TLS-RPT recommendations
-    if tlsrpt_score < 10:
-        if tlsrpt_score == 0:
-            actions.append("• Implement TLS-RPT (_smtp._tls record with rua=)")
-        else:
-            if not tlsrpt_result.get("rua"):
-                actions.append("• Add reporting URI (rua=) to TLS-RPT record")
-
+    if not tlsrpt_result or not tlsrpt_result.get('record'):
+        actions.append("• Add TLS-RPT record for TLS failure reporting")
+    
     # BIMI recommendations
-    if bimi_score < 8:
-        if bimi_score == 0:
-            actions.append("• Consider implementing BIMI (default._bimi record with logo URL)")
+    if not bimi_result or not bimi_result.get('record'):
+        if bimi_result and bimi_result.get('dmarc_compliant'):
+            actions.append("• Consider implementing BIMI for brand visibility")
         else:
-            if not bimi_result.get("dmarc_compliant"):
-                actions.append("• Set DMARC policy to p=quarantine or p=reject for BIMI compliance")
-            if not bimi_result.get("vmc_url"):
-                actions.append("• Consider adding VMC certificate for enhanced BIMI support")
-            elif bimi_result.get("vmc_check") and not bimi_result["vmc_check"].get("found"):
-                actions.append("• Fix VMC certificate URL (not accessible)")
-            if bimi_result.get("vmc_check") and bimi_result["vmc_check"].get("found"):
-                vmc = bimi_result["vmc_check"]
-                if vmc.get("validity") and not vmc["validity"].get("is_valid"):
-                    actions.append("• Renew VMC certificate (expired or not yet valid)")
-                if vmc.get("issuer") and not vmc["issuer"].get("is_authorized"):
-                    actions.append("• Obtain VMC from authorized CA (DigiCert, Entrust, GlobalSign, SSL.com, Sectigo)")
-
+            actions.append("• BIMI requires DMARC with p=quarantine or p=reject")
+    
     if actions:
         for action in actions:
-            print(f"  {action}")
+            print(action)
     else:
-        print("  ✅ All email security mechanisms properly configured!")
-
+        print("✅ Excellent! Your email security configuration is comprehensive.")
+    
     print(f"\n{'='*60}\n")
 
 
@@ -1251,18 +1405,37 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
 # MAIN
 # =============================================================================
 
-if __name__ == "__main__":
+def main():
     options = prog_parse()
     domain = options.domain
     verbose = options.verbose
     
-    print(f"Analyzing domain: {domain}")
+    custom_selectors = []
+    if options.selector:
+        selector_input = input("Enter DKIM selector(s) separated by comma: ")
+        custom_selectors = [s.strip() for s in selector_input.split(',') if s.strip()]
+    
+    print(f"\n🔍 Analyzing domain: {domain}")
+    print("   Please wait...")
     
     spf_result = spf_resolver(domain)
     dmarc_result = dmarc_resolver(domain)
-    dkim_result = dkim_resolver(domain, options.selector)
+    dkim_result = dkim_resolver(domain, custom_selectors if custom_selectors else None)
     mta_sts_result = mta_sts_resolver(domain)
     tlsrpt_result = tlsrpt_resolver(domain)
     bimi_result = bimi_resolver(domain, dmarc_result)
+    
+    analyze_results(
+        domain,
+        spf_result,
+        dmarc_result,
+        dkim_result,
+        mta_sts_result,
+        tlsrpt_result,
+        bimi_result,
+        verbose
+    )
 
-    analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_result, tlsrpt_result, bimi_result, verbose)
+
+if __name__ == "__main__":
+    main()
