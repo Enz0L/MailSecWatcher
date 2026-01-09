@@ -1,5 +1,5 @@
 # Author: Enzo LE NAIR
-# Version: V1.5.0
+# Version: V1.4.5
 # Descr: Mail DNS-based protection checker
 #   MailSecWatcher - Tool in development
 #   Copyright (C) 2025  Enzo LE NAIR
@@ -47,9 +47,9 @@ COMMON_SELECTORS = [
 ]
 
 
-# =============================================================================
+
 # ARGUMENT PARSER
-# =============================================================================
+
 
 def prog_parse():
     parser = ArgumentParser(
@@ -75,9 +75,9 @@ def prog_parse():
     return parser.parse_args()
 
 
-# =============================================================================
+
 # SPF FUNCTIONS
-# =============================================================================
+
 
 def count_spf_dns_lookups(spf_record):
     """
@@ -574,9 +574,9 @@ def calculate_spf_score(spf_result):
     return min(score, 20)
 
 
-# =============================================================================
+
 # DMARC FUNCTIONS
-# =============================================================================
+
 
 def parse_dmarc_tags(dmarc_record):
     """Parse DMARC record and return tags with effective values (including defaults)."""
@@ -678,9 +678,9 @@ def calculate_dmarc_score(dmarc_result):
     return min(score, 27)
 
 
-# =============================================================================
+
 # DKIM FUNCTIONS
-# =============================================================================
+
 
 def dkim_resolver(domain, custom_selectors=None):
     """Resolve DKIM records for a domain using common selectors."""
@@ -728,9 +728,9 @@ def calculate_dkim_score(dkim_result):
     return 0
 
 
-# =============================================================================
+
 # MTA-STS FUNCTIONS
-# =============================================================================
+
 
 def mta_sts_resolver(domain):
     """Resolve and analyze MTA-STS configuration for a domain."""
@@ -799,9 +799,9 @@ def calculate_mta_sts_score(mta_sts_result):
     return min(score, 12)
 
 
-# =============================================================================
+
 # TLS-RPT FUNCTIONS
-# =============================================================================
+
 
 def tlsrpt_resolver(domain):
     """Resolve TLS-RPT record for a domain."""
@@ -840,9 +840,9 @@ def calculate_tlsrpt_score(tlsrpt_result):
     return min(score, 12)
 
 
-# =============================================================================
+
 # BIMI FUNCTIONS
-# =============================================================================
+
 
 def check_dmarc_compliance(dmarc_result):
     """Check if DMARC policy is BIMI-compliant (quarantine or reject)."""
@@ -1077,9 +1077,9 @@ def calculate_bimi_score(bimi_result):
     return min(score, 8)
 
 
-# =============================================================================
+
 # SCORING AND DISPLAY
-# =============================================================================
+
 
 def get_grade(score):
     """Get letter grade based on score."""
@@ -1401,9 +1401,9 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
     print(f"\n{'='*60}\n")
 
 
-# =============================================================================
+
 # MAIN
-# =============================================================================
+
 
 def main():
     options = prog_parse()
