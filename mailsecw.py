@@ -54,7 +54,7 @@ COMMON_SELECTORS = [
 def prog_parse():
     parser = ArgumentParser(
         prog="mailsecwatcher",
-        description="Mail DNS-based protection checker - Analyzes SPF, DKIM, DMARC, MTA-STS, TLSRPT, and BIMI",
+        description="Mail DNS-based protection checker - Analyzes SPF, DKIM, DMARC, MTA-STS, TLSRPT, and BIMI. Made with ♥ by Enzo LE NAIR.",
         usage="%(prog)s [options] -d domain_name"
     )
     parser.add_argument(
@@ -1117,15 +1117,12 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
     
     dmarc_parsed = parse_dmarc_tags(dmarc_result) if dmarc_result else None
     
-    # =========================================================================
     # OVERALL SCORE
-    # =========================================================================
+    
     print(f"{emoji} OVERALL SCORE: {total_score}/100 (Grade: {grade})")
     print(f"\n{'─'*60}")
     
-    # =========================================================================
-    # SPF DISPLAY - MODIFIÉ POUR AFFICHER LE SPF DU REDIRECT
-    # =========================================================================
+    # SPF DISPLAY - MODIFIÉ POUR AFFICHER LE SPF DU REDIRECT:  voir semaine pro si ok
     print(f"\n📧 SPF ({spf_score}/20)")
     if spf_result:
         print(f"   Record: {spf_result['record']}")
@@ -1198,9 +1195,7 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
     else:
         print("   ❌ No SPF record found")
     
-    # =========================================================================
     # DMARC DISPLAY
-    # =========================================================================
     print(f"\n🛡️  DMARC ({dmarc_score}/27)")
     if dmarc_result and dmarc_parsed:
         effective = dmarc_parsed.get("effective", {})
@@ -1233,9 +1228,7 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
     else:
         print("   ❌ No DMARC record found")
     
-    # =========================================================================
     # DKIM DISPLAY
-    # =========================================================================
     print(f"\n🔑 DKIM ({dkim_score}/21)")
     if dkim_result:
         print(f"   Found {len(dkim_result)} selector(s):")
@@ -1250,9 +1243,7 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
     else:
         print("   ❌ No DKIM records found (checked common selectors)")
     
-    # =========================================================================
     # MTA-STS DISPLAY
-    # =========================================================================
     print(f"\n🔒 MTA-STS ({mta_sts_score}/12)")
     if mta_sts_result and mta_sts_result.get('record'):
         print(f"   Record: {mta_sts_result['record']}")
@@ -1271,9 +1262,7 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
     else:
         print("   ❌ No MTA-STS record found")
     
-    # =========================================================================
     # TLS-RPT DISPLAY
-    # =========================================================================
     print(f"\n📊 TLS-RPT ({tlsrpt_score}/12)")
     if tlsrpt_result and tlsrpt_result.get('record'):
         print(f"   Record: {tlsrpt_result['record']}")
@@ -1282,9 +1271,7 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
     else:
         print("   ❌ No TLS-RPT record found")
     
-    # =========================================================================
     # BIMI DISPLAY
-    # =========================================================================
     print(f"\n🎨 BIMI ({bimi_score}/8)")
     if bimi_result and bimi_result.get('record'):
         print(f"   Record: {bimi_result['record']}")
