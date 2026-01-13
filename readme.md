@@ -14,11 +14,15 @@ This tool helps security professionals and domain administrators audit their ema
   - Security issue detection (+all, ?all, deprecated ptr)
 - **DMARC Analysis**: Checks Domain-based Message Authentication, Reporting & Conformance policies
 - **DKIM Analysis**: Discovers DKIM selectors and validates their configuration (supports custom selectors)
+  - **NEW**: Transparent scoring justification showing why you got your score
 - **MTA-STS Analysis**: Validates Mail Transfer Agent Strict Transport Security DNS records and policy files
 - **TLS-RPT Analysis**: Checks SMTP TLS Reporting configuration
 - **BIMI Analysis**: Validates Brand Indicators for Message Identification including VMC certificate verification
 - **Security Scoring**: Provides an overall security score (0-100) with letter grade (A+ to F)
 - **Actionable Recommendations**: Suggests improvements for email security posture
+  - **NEW**: Categorized by priority level (Critical, High, Medium, Low)
+  - **NEW**: Clear visual hierarchy with counters
+  - **NEW**: Eliminates redundancies from protocol sections
 
 ## Installation
 
@@ -119,7 +123,12 @@ Queries `_dmarc.{domain}` TXT record and validates:
 Tests common selectors against `{selector}._domainkey.{domain}`:
 
 **Built-in selectors tested:**
-selector1, selector2, google, k1, k2, ctct1, ctct2, sm, s1, s2, sig1, litesrv, zendesk1, zendesk2, mail, email, dkim, default, and many more.
+selector1, selector2, google, k1, k2, ctct1, ctct2, sm, s1, s2, sig1, litesrv, zendesk1, zendesk2, mail, email, dkim, default, protonmail, protonmail2, protonmail3, and many more.
+
+**Scoring Logic:**
+- **1 selector**: 12 points (basic configuration)
+- **2 selectors**: 17 points (solid configuration)
+- **3+ selectors**: 21 points (maximum score - excellent redundancy)
 
 ### MTA-STS Resolution
 
@@ -206,9 +215,11 @@ Queries `default._bimi.{domain}` TXT record and validates:
    Percentage: 100%
    Reporting: ✅ rua configured
 
-📧 DKIM (17/21)
-   ✅ google: v=DKIM1; k=rsa; p=MIIBIjAN...
-   ✅ selector1: v=DKIM1; k=rsa; p=MIGfMA0G...
+🔑 DKIM (17/21)
+   Found 2 selector(s):
+   ✅ google
+   ✅ selector1
+   Scoring: 2 selectors = 17pts (3+ selectors = 21pts)
 
 🔒 MTA-STS (12/12)
    Record: v=STSv1; id=20240115
@@ -225,19 +236,20 @@ Queries `default._bimi.{domain}` TXT record and validates:
 
 ──────────────────────────────────────────────────────────────
 
-📊 SCORE BREAKDOWN:
-   SPF:     17/20  █████████████████░░░
-   DMARC:   22/27  ████████████████░░░░
-   DKIM:    17/21  ████████████████░░░░
-   MTA-STS: 12/12  ████████████████████
-   TLS-RPT: 12/12  ████████████████████
-   BIMI:     5/8   ████████████░░░░░░░░
+📋 RECOMMENDATIONS:
 
-💡 RECOMMENDED ACTIONS:
-• Upgrade DMARC policy from p=quarantine to p=reject
-• Consider adding VMC certificate for enhanced BIMI support
-```
+🟠 HIGH PRIORITY (1)
+  • Consider upgrading DMARC policy from 'quarantine' to 'reject'
+
+🟡 MEDIUM PRIORITY (2)
+  • Consider strict DKIM alignment (adkim=s) for enhanced security
+  • Consider strict SPF alignment (aspf=s) for enhanced security
+
+🟢 LOW PRIORITY (1)
+  • Consider implementing BIMI for brand visibility
+
 ============================================================
+```
 ## Todo List
 
 - [ ] HTML report export
@@ -259,4 +271,22 @@ See [LICENSE](LICENSE) for details.
 
 ## Version
 
-V1.4.5
+**Current**: v2.0.2
+
+## What's New in v2.0.2
+
+### 🎯 Categorized Recommendations
+- Recommendations now organized by priority: 🔴 Critical, 🟠 High, 🟡 Medium, 🟢 Low
+- Clear counters showing number of items per category
+- Visual hierarchy for easy scanning
+- No more redundant messages between protocol sections and recommendations
+
+### 📊 DKIM Score Transparency
+- Now displays scoring justification: "2 selectors = 17pts (3+ selectors = 21pts)"
+- Users understand exactly why they received their score
+- Clear guidance on how to improve (add more selectors for redundancy)
+
+### Previous Versions
+- **v1.4.5**: SPF redirect improvements, additional DKIM selectors
+- **v1.4.0**: BIMI VMC certificate validation
+- **v1.3.0**: MTA-STS and TLS-RPT support

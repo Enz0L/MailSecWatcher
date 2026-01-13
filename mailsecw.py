@@ -1,5 +1,5 @@
 # Author: Enzo LE NAIR
-# Version: V2.0.1
+# Version: V2.0.2
 # Descr: Mail DNS-based protection checker
 #   MailSecWatcher - Tool in development
 #   Copyright (C) 2025  Enzo LE NAIR
@@ -1099,6 +1099,104 @@ def get_grade(score):
         return "F", "🔴"
 
 
+def categorize_recommendations(spf_result, dmarc_result, dkim_score, mta_sts_result, tlsrpt_result, bimi_result):
+    """Categorize recommendations by priority level.
+
+    Returns a dictionary with 4 categories: critical, high, medium, low
+    Each category contains a list of recommendation strings.
+    """
+    critical = []
+    high = []
+    medium = []
+    low = []
+
+    dmarc_parsed = parse_dmarc_tags(dmarc_result) if dmarc_result else None
+
+    #SPF recommendations
+    if not spf_result:
+        critical.append("Implement SPF record to prevent email spoofing")
+    else:
+        mechanism = spf_result.get('mechanism')
+
+        if mechanism == 'pass':
+            critical.append("CRITICAL: Remove +all from SPF - it allows anyone to spoof your domain")
+        elif mechanism == 'neutral':
+            critical.append("SPF defaults to neutral - add -all or ~all for protection")
+
+        if spf_result.get('redirect_info') and spf_result['redirect_info'].get('error'):
+            critical.append("Fix SPF redirect - target domain has no valid SPF record")
+
+        lookup_count = spf_result.get('dns_lookups', 0)
+        if lookup_count > 10:
+            critical.append(f"Reduce SPF DNS lookups from {lookup_count} to 10 or fewer")
+        elif lookup_count > 7:
+            high.append(f"Consider reducing SPF DNS lookups ({lookup_count}/10) to avoid future issues")
+
+        if mechanism == 'softfail':
+            high.append("Consider upgrading SPF from ~all (softfail) to -all (hardfail)")
+
+    #DMARC recommendations
+    if dmarc_result and dmarc_parsed:
+        effective = dmarc_parsed.get("effective", {})
+        explicit = dmarc_parsed.get("explicit", {})
+
+        policy = effective.get("p", "none").lower()
+
+        if "rua" not in explicit:
+            critical.append("Add DMARC aggregate reporting (rua=mailto:...)")
+
+        if policy == "none":
+            critical.append("Upgrade DMARC policy from 'none' to 'quarantine' or 'reject'")
+        elif policy == "quarantine":
+            high.append("Consider upgrading DMARC policy from 'quarantine' to 'reject'")
+
+        if "sp" not in explicit:
+            high.append("Consider adding explicit subdomain policy (sp=reject)")
+
+        if "ruf" not in explicit:
+            high.append("Consider adding DMARC forensic reporting (ruf=mailto:...)")
+
+        if effective.get("adkim") != "s":
+            medium.append("Consider strict DKIM alignment (adkim=s) for enhanced security")
+        if effective.get("aspf") != "s":
+            medium.append("Consider strict SPF alignment (aspf=s) for enhanced security")
+    else:
+        critical.append("Implement DMARC record with p=reject policy")
+
+    #DKIM recommendations
+    if dkim_score == 0:
+        critical.append("Implement DKIM signing for outgoing emails")
+
+    #MTA-STS recommendations
+    if not mta_sts_result or not mta_sts_result.get('record'):
+        low.append("Consider implementing MTA-STS for transport security")
+    elif mta_sts_result.get('policy_content'):
+        if 'mode: testing' in mta_sts_result['policy_content'].lower():
+            medium.append("Upgrade MTA-STS from testing to enforce mode")
+
+    #TLS-RPT recommendations
+    if not tlsrpt_result or not tlsrpt_result.get('record'):
+        low.append("Add TLS-RPT record for TLS failure reporting")
+
+    #BIMI recommendations
+    if not bimi_result or not bimi_result.get('record'):
+        if dmarc_result and dmarc_parsed:
+            policy = dmarc_parsed.get("effective", {}).get("p", "none").lower()
+            if policy in ["quarantine", "reject"]:
+                low.append("Consider implementing BIMI for brand visibility")
+            else:
+                low.append("BIMI requires DMARC with p=quarantine or p=reject")
+        else:
+            low.append("BIMI requires DMARC with p=quarantine or p=reject")
+
+    return {
+        'critical': critical,
+        'high': high,
+        'medium': medium,
+        'low': low
+    }
+
+
 def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_result, tlsrpt_result, bimi_result, verbose=False):
     """Display analysis results."""
     print(f"\n{'='*60}")
@@ -1231,7 +1329,8 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
     # DKIM DISPLAY
     print(f"\n🔑 DKIM ({dkim_score}/21)")
     if dkim_result:
-        print(f"   Found {len(dkim_result)} selector(s):")
+        selector_count = len(dkim_result)
+        print(f"   Found {selector_count} selector(s):")
         for dkim in dkim_result:
             print(f"   ✅ {dkim['selector']}")
             if verbose:
@@ -1240,6 +1339,14 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
                     print(f"      {record[:80]}...")
                 else:
                     print(f"      {record}")
+
+        #Display scoring justification
+        if selector_count == 1:
+            print(f"   Scoring: 1 selector = 12pts (consider adding more for redundancy)")
+        elif selector_count == 2:
+            print(f"   Scoring: 2 selectors = 17pts (3+ selectors = 21pts)")
+        elif selector_count >= 3:
+            print(f"   Scoring: {selector_count} selectors = 21pts (maximum)")
     else:
         print("   ❌ No DKIM records found (checked common selectors)")
     
@@ -1306,86 +1413,54 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
     # RECOMMENDATIONS
     # =========================================================================
     print(f"\n{'─'*60}")
-    print("📋 RECOMMENDATIONS:")
-    
-    actions = []
-    
-    # SPF recommendations
-    if not spf_result:
-        actions.append("• 🔴 Implement SPF record to prevent email spoofing")
+    print("📋 RECOMMENDATIONS:\n")
+
+    #Get categorized recommendations
+    recommendations = categorize_recommendations(
+        spf_result, dmarc_result, dkim_score,
+        mta_sts_result, tlsrpt_result, bimi_result
+    )
+
+    #Check if there are any recommendations
+    total_recommendations = (
+        len(recommendations['critical']) +
+        len(recommendations['high']) +
+        len(recommendations['medium']) +
+        len(recommendations['low'])
+    )
+
+    if total_recommendations == 0:
+        print("✅ Excellent! Your email security configuration is comprehensive.\n")
     else:
-        if spf_result.get('mechanism') == 'softfail':
-            actions.append("• Consider upgrading SPF from ~all (softfail) to -all (hardfail)")
-        elif spf_result.get('mechanism') == 'neutral':
-            actions.append("• 🔴 SPF defaults to neutral - add -all or ~all for protection")
-        elif spf_result.get('mechanism') == 'pass':
-            actions.append("• 🔴 CRITICAL: Remove +all from SPF - it allows anyone to spoof your domain")
-        
-        if spf_result.get('redirect_info') and spf_result['redirect_info'].get('error'):
-            actions.append("• 🔴 Fix SPF redirect - target domain has no valid SPF record")
-        
-        lookup_count = spf_result.get('dns_lookups', 0)
-        if lookup_count > 10:
-            actions.append(f"• 🔴 Reduce SPF DNS lookups from {lookup_count} to 10 or fewer")
-        elif lookup_count > 7:
-            actions.append(f"• Consider reducing SPF DNS lookups ({lookup_count}/10) to avoid future issues")
-    
-    # DMARC recommendations
-    if dmarc_result and dmarc_parsed:
-        effective = dmarc_parsed.get("effective", {})
-        explicit = dmarc_parsed.get("explicit", {})
-        
-        policy = effective.get("p", "none").lower()
-        if policy == "none":
-            actions.append("• 🔴 Upgrade DMARC policy from 'none' to 'quarantine' or 'reject'")
-        elif policy == "quarantine":
-            actions.append("• Consider upgrading DMARC policy from 'quarantine' to 'reject'")
-        
-        if "sp" not in explicit:
-            actions.append("• Consider adding explicit subdomain policy (sp=reject)")
-        
-        if "rua" not in explicit:
-            actions.append("• 🔴 Add DMARC aggregate reporting (rua=mailto:...)")
-        
-        if "ruf" not in explicit:
-            actions.append("• Consider adding DMARC forensic reporting (ruf=mailto:...)")
-        
-        if effective.get("adkim") != "s":
-            actions.append("• Consider strict DKIM alignment (adkim=s) for enhanced security")
-        if effective.get("aspf") != "s":
-            actions.append("• Consider strict SPF alignment (aspf=s) for enhanced security")
-    else:
-        actions.append("• 🔴 Implement DMARC record with p=reject policy")
-    
-    # DKIM recommendations
-    if dkim_score == 0:
-        actions.append("• 🔴 Implement DKIM signing for outgoing emails")
-    
-    # MTA-STS recommendations
-    if not mta_sts_result or not mta_sts_result.get('record'):
-        actions.append("• Consider implementing MTA-STS for transport security")
-    elif mta_sts_result.get('policy_content'):
-        if 'mode: testing' in mta_sts_result['policy_content'].lower():
-            actions.append("• Upgrade MTA-STS from testing to enforce mode")
-    
-    # TLS-RPT recommendations
-    if not tlsrpt_result or not tlsrpt_result.get('record'):
-        actions.append("• Add TLS-RPT record for TLS failure reporting")
-    
-    # BIMI recommendations
-    if not bimi_result or not bimi_result.get('record'):
-        if bimi_result and bimi_result.get('dmarc_compliant'):
-            actions.append("• Consider implementing BIMI for brand visibility")
-        else:
-            actions.append("• BIMI requires DMARC with p=quarantine or p=reject")
-    
-    if actions:
-        for action in actions:
-            print(action)
-    else:
-        print("✅ Excellent! Your email security configuration is comprehensive.")
-    
-    print(f"\n{'='*60}\n")
+        #Display CRITICAL recommendations
+        if recommendations['critical']:
+            print(f"🔴 CRITICAL ISSUES ({len(recommendations['critical'])})")
+            for rec in recommendations['critical']:
+                print(f"  • {rec}")
+            print()
+
+        #Display HIGH PRIORITY recommendations
+        if recommendations['high']:
+            print(f"🟠 HIGH PRIORITY ({len(recommendations['high'])})")
+            for rec in recommendations['high']:
+                print(f"  • {rec}")
+            print()
+
+        #Display MEDIUM PRIORITY recommendations
+        if recommendations['medium']:
+            print(f"🟡 MEDIUM PRIORITY ({len(recommendations['medium'])})")
+            for rec in recommendations['medium']:
+                print(f"  • {rec}")
+            print()
+
+        #Display LOW PRIORITY recommendations
+        if recommendations['low']:
+            print(f"🟢 LOW PRIORITY ({len(recommendations['low'])})")
+            for rec in recommendations['low']:
+                print(f"  • {rec}")
+            print()
+
+    print(f"{'='*60}\n")
 
 
 
