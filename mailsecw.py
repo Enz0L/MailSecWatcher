@@ -1,5 +1,5 @@
 # Author: Enzo LE NAIR
-# Version: V2.0.3
+# Version: V2.0.3a
 # Descr: Mail DNS-based protection checker
 #   MailSecWatcher - Tool in development
 #   Copyright (C) 2025  Enzo LE NAIR
