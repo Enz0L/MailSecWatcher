@@ -320,7 +320,3 @@ See [LICENSE](LICENSE) for details.
 - Users understand exactly why they received their score
 - Clear guidance on how to improve (add more selectors for redundancy)
 
-### Previous Versions
-- **v1.4.5**: SPF redirect improvements, additional DKIM selectors
-- **v1.4.0**: BIMI VMC certificate validation
-- **v1.3.0**: MTA-STS and TLS-RPT support
