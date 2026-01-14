@@ -1,5 +1,5 @@
 # Author: Enzo LE NAIR
-# Version: V2.0.2
+# Version: V2.0.3
 # Descr: Mail DNS-based protection checker
 #   MailSecWatcher - Tool in development
 #   Copyright (C) 2025  Enzo LE NAIR
@@ -79,7 +79,7 @@ def prog_parse():
     )
     parser.add_argument(
         "-ns", "--nameserver",
-        help="Custom DNS nameserver to use (e.g., 8.8.8.8)"
+        help="Custom DNS nameserver to use (e.g., 8.8.8.8)" # DNS resolver customization
     )
     return parser.parse_args()
 
