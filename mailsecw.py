@@ -1,8 +1,8 @@
 # Author: Enzo LE NAIR
-# Version: V2.0.3a
+# Version: V2.0.4
 # Descr: Mail DNS-based protection checker
 #   MailSecWatcher - Tool in development
-#   Copyright (C) 2025  Enzo LE NAIR
+#   Copyright (C) 2026  Enzo LE NAIR
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU Affero General Public License as
@@ -724,16 +724,14 @@ def calculate_dkim_score(dkim_result):
     """Calculate DKIM score based on found selectors."""
     if not dkim_result:
         return 0
-    
+
     count = len(dkim_result)
-    
-    if count >= 3:
+
+    if count >= 2:
         return 21
-    elif count == 2:
-        return 17
     elif count == 1:
         return 12
-    
+
     return 0
 
 
@@ -1351,11 +1349,9 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
 
         #Display scoring justification
         if selector_count == 1:
-            print(f"   Scoring: 1 selector = 12pts (consider adding more for redundancy)")
-        elif selector_count == 2:
-            print(f"   Scoring: 2 selectors = 17pts (3+ selectors = 21pts)")
-        elif selector_count >= 3:
-            print(f"   Scoring: {selector_count} selectors = 21pts (maximum)")
+            print(f"   Scoring: 1 selector = 12pts (add at least 1 more for redundancy)")
+        elif selector_count >= 2:
+            print(f"   Scoring: {selector_count} selectors = 21pts (maximum - excellent redundancy)")
     else:
         print("   ❌ No DKIM records found (checked common selectors)")
     

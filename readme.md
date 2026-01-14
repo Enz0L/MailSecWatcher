@@ -152,9 +152,8 @@ Tests common selectors against `{selector}._domainkey.{domain}`:
 selector1, selector2, google, k1, k2, ctct1, ctct2, sm, s1, s2, sig1, litesrv, zendesk1, zendesk2, mail, email, dkim, default, protonmail, protonmail2, protonmail3, and many more.
 
 **Scoring Logic:**
-- **1 selector**: 12 points (basic configuration)
-- **2 selectors**: 17 points (solid configuration)
-- **3+ selectors**: 21 points (maximum score - excellent redundancy)
+- **1 selector**: 12 points (basic configuration - add more for redundancy)
+- **2+ selectors**: 21 points (maximum score - excellent redundancy)
 
 ### MTA-STS Resolution
 
@@ -241,11 +240,11 @@ Queries `default._bimi.{domain}` TXT record and validates:
    Percentage: 100%
    Reporting: ✅ rua configured
 
-🔑 DKIM (17/21)
+🔑 DKIM (21/21)
    Found 2 selector(s):
    ✅ google
    ✅ selector1
-   Scoring: 2 selectors = 17pts (3+ selectors = 21pts)
+   Scoring: 2 selectors = 21pts (maximum - excellent redundancy)
 
 🔒 MTA-STS (12/12)
    Record: v=STSv1; id=20240115
@@ -297,26 +296,34 @@ See [LICENSE](LICENSE) for details.
 
 ## Version
 
-**Current**: v2.0.3
+**Current**: v2.0.4
 
-## What's New in v2.0.3
+## What's New in v2.0.4
 
-### 🌐 Custom DNS Nameserver Support
+### 🎯 DKIM Scoring Simplified
+- **2+ selectors now achieve maximum score** (21/21 points)
+- Recognizes that 2 selectors provide sufficient redundancy for production
+- Updated scoring justification messages to reflect the change
+- Simplified scoring logic for better user experience
+
+### Previous Changes (v2.0.3)
+
+#### 🌐 Custom DNS Nameserver Support
 - New `-ns/--nameserver` option to specify custom DNS server
 - Useful for testing, corporate DNS, troubleshooting
 - IP validation included
 - Display message showing which nameserver is in use
 
-### Previous Changes (v2.0.2)
+#### v2.0.2 Changes
 
-### 🎯 Categorized Recommendations
+##### 🎯 Categorized Recommendations
 - Recommendations now organized by priority: 🔴 Critical, 🟠 High, 🟡 Medium, 🟢 Low
 - Clear counters showing number of items per category
 - Visual hierarchy for easy scanning
 - No more redundant messages between protocol sections and recommendations
 
-### 📊 DKIM Score Transparency
-- Now displays scoring justification: "2 selectors = 17pts (3+ selectors = 21pts)"
+##### 📊 DKIM Score Transparency
+- Displays scoring justification for each selector count
 - Users understand exactly why they received their score
 - Clear guidance on how to improve (add more selectors for redundancy)
 
