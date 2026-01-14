@@ -55,6 +55,10 @@ Verbose mode displays additional details:
 python mailsecwatcher.py -d example.com -s
 When using `-s`, you'll be prompted to enter custom selector(s):
 Enter DKIM selector(s) separated by comma: mycompany, mailjet
+### With Custom DNS Nameserver
+python mailsecwatcher.py -d example.com -ns 8.8.8.8
+You can specify a custom DNS nameserver for all queries. Useful for testing, corporate DNS, or troubleshooting.
+
 ### Command Line Options
 
 | Option | Description |
@@ -62,6 +66,28 @@ Enter DKIM selector(s) separated by comma: mycompany, mailjet
 | `-d`, `--domain` | Domain name to analyze (required) |
 | `-v`, `--verbose` | Enable verbose output with detailed information |
 | `-s`, `--selector` | Prompt for custom DKIM selector(s) |
+| `-ns`, `--nameserver` | Custom DNS nameserver to use (e.g., 8.8.8.8) |
+
+### Using Custom DNS Nameserver
+
+Specify a custom DNS nameserver for all DNS queries:
+
+```bash
+python mailsecwatcher.py -d example.com -ns 8.8.8.8
+```
+
+**Common public DNS servers:**
+- **Google DNS**: 8.8.8.8, 8.8.4.4
+- **Cloudflare DNS**: 1.1.1.1, 1.0.0.1
+- **Quad9**: 9.9.9.9
+- **OpenDNS**: 208.67.222.222, 208.67.220.220
+
+**Use cases:**
+- Test against specific DNS servers
+- Use corporate/internal DNS infrastructure
+- Verify DNS propagation across different servers
+- DNS troubleshooting and debugging
+- Support air-gapped networks
 
 ## How It Works
 
@@ -271,9 +297,17 @@ See [LICENSE](LICENSE) for details.
 
 ## Version
 
-**Current**: v2.0.2
+**Current**: v2.0.3
 
-## What's New in v2.0.2
+## What's New in v2.0.3
+
+### 🌐 Custom DNS Nameserver Support
+- New `-ns/--nameserver` option to specify custom DNS server
+- Useful for testing, corporate DNS, troubleshooting
+- IP validation included
+- Display message showing which nameserver is in use
+
+### Previous Changes (v2.0.2)
 
 ### 🎯 Categorized Recommendations
 - Recommendations now organized by priority: 🔴 Critical, 🟠 High, 🟡 Medium, 🟢 Low

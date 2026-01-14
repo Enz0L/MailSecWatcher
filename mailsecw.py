@@ -25,6 +25,11 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509.oid import ExtensionOID
 from datetime import datetime, timezone
+import ipaddress
+import sys
+
+#Global DNS resolver (can be customized via -ns option)
+DNS_RESOLVER = dns.resolver
 
 AUTHORIZED_VMC_CA = [
     "DigiCert",
@@ -71,6 +76,10 @@ def prog_parse():
         "-s", "--selector",
         action="store_true",
         help="Prompt for custom DKIM selector(s)"
+    )
+    parser.add_argument(
+        "-ns", "--nameserver",
+        help="Custom DNS nameserver to use (e.g., 8.8.8.8)"
     )
     return parser.parse_args()
 
@@ -210,9 +219,9 @@ def resolve_spf_redirect(domain, max_depth=10, visited=None):
         }
     
     visited.append(domain)
-    
+
     try:
-        answers = dns.resolver.resolve(domain, 'TXT')
+        answers = DNS_RESOLVER.resolve(domain, 'TXT')
         spf = None
         for answer in answers:
             txt = answer.to_text()
@@ -441,7 +450,7 @@ def spf_resolver(domain):
     Properly handles redirect modifier according to RFC 7208.
     """
     try:
-        answers = dns.resolver.resolve(domain, 'TXT')
+        answers = DNS_RESOLVER.resolve(domain, 'TXT')
         spf = None
         for answer in answers:
             txt = answer.to_text()
@@ -619,7 +628,7 @@ def parse_dmarc_tags(dmarc_record):
 def dmarc_resolver(domain):
     """Resolve DMARC record for a domain."""
     try:
-        answers = dns.resolver.resolve(f"_dmarc.{domain}", 'TXT')
+        answers = DNS_RESOLVER.resolve(f"_dmarc.{domain}", 'TXT')
         for answer in answers:
             txt = answer.to_text().replace('"', '').strip()
             if "v=DMARC1" in txt:
@@ -696,7 +705,7 @@ def dkim_resolver(domain, custom_selectors=None):
     for selector in selectors_to_check:
         try:
             dkim_domain = f"{selector}._domainkey.{domain}"
-            answers = dns.resolver.resolve(dkim_domain, 'TXT')
+            answers = DNS_RESOLVER.resolve(dkim_domain, 'TXT')
             for answer in answers:
                 txt = answer.to_text().replace('"', '').strip()
                 if "v=DKIM1" in txt or "k=" in txt or "p=" in txt:
@@ -741,9 +750,9 @@ def mta_sts_resolver(domain):
         'issues': [],
         'warnings': []
     }
-    
+
     try:
-        answers = dns.resolver.resolve(f"_mta-sts.{domain}", 'TXT')
+        answers = DNS_RESOLVER.resolve(f"_mta-sts.{domain}", 'TXT')
         for answer in answers:
             txt = answer.to_text().replace('"', '').strip()
             if "v=STSv1" in txt:
@@ -809,9 +818,9 @@ def tlsrpt_resolver(domain):
         'record': None,
         'rua': None
     }
-    
+
     try:
-        answers = dns.resolver.resolve(f"_smtp._tls.{domain}", 'TXT')
+        answers = DNS_RESOLVER.resolve(f"_smtp._tls.{domain}", 'TXT')
         for answer in answers:
             txt = answer.to_text().replace('"', '').strip()
             if "v=TLSRPTv1" in txt:
@@ -1004,9 +1013,9 @@ def bimi_resolver(domain, dmarc_result):
         'logo_check': None,
         'vmc_check': None
     }
-    
+
     try:
-        answers = dns.resolver.resolve(f"default._bimi.{domain}", 'TXT')
+        answers = DNS_RESOLVER.resolve(f"default._bimi.{domain}", 'TXT')
         for answer in answers:
             txt = answer.to_text().replace('"', '').strip()
             if "v=BIMI1" in txt:
@@ -1471,12 +1480,24 @@ def main():
     options = prog_parse()
     domain = options.domain
     verbose = options.verbose
-    
+
+    #Configure custom nameserver if provided
+    if options.nameserver:
+        global DNS_RESOLVER
+        try:
+            ipaddress.ip_address(options.nameserver)
+            DNS_RESOLVER = dns.resolver.Resolver()
+            DNS_RESOLVER.nameservers = [options.nameserver]
+            print(f"🌐 Using nameserver: {options.nameserver}")
+        except ValueError:
+            print(f"❌ Error: '{options.nameserver}' is not a valid IP address")
+            sys.exit(1)
+
     custom_selectors = []
     if options.selector:
         selector_input = input("Enter DKIM selector(s) separated by comma: ")
         custom_selectors = [s.strip() for s in selector_input.split(',') if s.strip()]
-    
+
     print(f"\n🔍 Analyzing domain: {domain}")
     print("   Please wait...")
     
