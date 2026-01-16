@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Security Report - proton.me</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6D4AFF;
+            --secondary: #8A6EFF;
+            --accent: #C4B5FD;
+            --background: #F5F4FF;
+            --danger: #DC2626;
+            --grade-a: #6D4AFF;
+            --grade-b: #8A6EFF;
+            --grade-c: #C4B5FD;
+            --grade-d: #F59E0B;
+            --grade-f: #DC2626;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, var(--background) 0%, #ffffff 100%);
+            color: var(--primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: var(--background);
+            padding: 2.5rem 0;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+
+        header .content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo {
+            max-height: 60px;
+            margin-bottom: 1rem;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        header .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        header .domain-name {
+            font-weight: 600;
+            background: rgba(255,255,255,0.2);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 0.5rem;
+        }
+
+        header .date {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 1rem;
+        }
+
+        /* Score Global Section */
+        .score-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 3rem;
+            padding: 3rem 2rem;
+            background: white;
+            margin: -2rem 2rem 2rem 2rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(29, 53, 87, 0.1);
+            position: relative;
+            z-index: 10;
+        }
+
+        .grade-circle {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: white;
+            position: relative;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+        }
+
+        .grade-circle::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.3), transparent);
+            z-index: -1;
+        }
+
+        .grade-a, .grade-a\+ { background: linear-gradient(135deg, var(--grade-a), var(--secondary)); }
+        .grade-b { background: linear-gradient(135deg, var(--grade-b), var(--accent)); }
+        .grade-c { background: linear-gradient(135deg, var(--grade-c), var(--secondary)); }
+        .grade-d { background: linear-gradient(135deg, var(--grade-d), #f4a261); }
+        .grade-f { background: linear-gradient(135deg, var(--grade-f), #ff6b6b); }
+
+        .score-details {
+            text-align: left;
+        }
+
+        .score-value {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1;
+        }
+
+        .score-label {
+            font-size: 1rem;
+            color: var(--secondary);
+            margin-top: 0.5rem;
+        }
+
+        /* Protocols Grid */
+        .protocols-section {
+            padding: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 1.5rem;
+            background: linear-gradient(180deg, var(--secondary), var(--accent));
+            border-radius: 2px;
+        }
+
+        .protocols-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .protocol-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(29, 53, 87, 0.08);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid rgba(168, 218, 220, 0.3);
+        }
+
+        .protocol-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(29, 53, 87, 0.12);
+        }
+
+        .protocol-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--accent);
+        }
+
+        .protocol-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .protocol-icon {
+            font-size: 1.3rem;
+        }
+
+        .protocol-score {
+            font-size: 1.1rem;
+            font-weight: 600;
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            background: var(--accent);
+            color: var(--primary);
+        }
+
+        .protocol-score.full {
+            background: linear-gradient(135deg, var(--grade-a), var(--secondary));
+            color: white;
+        }
+
+        .protocol-score.zero {
+            background: var(--danger);
+            color: white;
+        }
+
+        .protocol-content {
+            font-size: 0.9rem;
+        }
+
+        .protocol-record {
+            background: var(--background);
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.8rem;
+            word-break: break-all;
+            margin-bottom: 1rem;
+            border-left: 3px solid var(--accent);
+        }
+
+        .protocol-details {
+            margin-top: 0.75rem;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            border-bottom: 1px dashed rgba(168, 218, 220, 0.5);
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            color: var(--secondary);
+            font-size: 0.85rem;
+        }
+
+        .detail-value {
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        .status-ok {
+            color: var(--grade-a);
+        }
+
+        .status-warning {
+            color: var(--grade-d);
+        }
+
+        .status-error {
+            color: var(--danger);
+        }
+
+        .selectors-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .selector-tag {
+            background: var(--accent);
+            color: var(--primary);
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        /* Recommendations Section */
+        .recommendations-section {
+            padding: 2rem;
+        }
+
+        .rec-category {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 20px rgba(29, 53, 87, 0.08);
+        }
+
+        .rec-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .rec-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+
+        .rec-critical .rec-icon { background: var(--danger); color: white; }
+        .rec-high .rec-icon { background: #f4a261; color: white; }
+        .rec-medium .rec-icon { background: var(--grade-d); color: var(--primary); }
+        .rec-low .rec-icon { background: var(--accent); color: var(--primary); }
+
+        .rec-critical .rec-header { color: var(--danger); }
+        .rec-high .rec-header { color: #e76f51; }
+        .rec-medium .rec-header { color: #e9c46a; }
+        .rec-low .rec-header { color: var(--secondary); }
+
+        .rec-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .rec-list li {
+            padding: 0.6rem 0 0.6rem 1.5rem;
+            position: relative;
+            font-size: 0.95rem;
+        }
+
+        .rec-list li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .rec-critical .rec-list li::before { background: var(--danger); }
+        .rec-high .rec-list li::before { background: #f4a261; }
+        .rec-medium .rec-list li::before { background: var(--grade-d); }
+        .rec-low .rec-list li::before { background: var(--accent); }
+
+        .no-issues {
+            text-align: center;
+            padding: 3rem;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(29, 53, 87, 0.08);
+        }
+
+        .no-issues-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .no-issues h3 {
+            color: var(--grade-a);
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--secondary);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--accent);
+            margin-top: 2rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .score-section {
+                flex-direction: column;
+                gap: 1.5rem;
+                margin: -1rem 1rem 1rem 1rem;
+            }
+
+            .protocols-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 1rem;
+            }
+
+            header h1 {
+                font-size: 1.5rem;
+            }
+
+            .grade-circle {
+                width: 120px;
+                height: 120px;
+                font-size: 3rem;
+            }
+
+            .score-value {
+                font-size: 2.5rem;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+            }
+
+            .protocol-card:hover {
+                transform: none;
+                box-shadow: 0 4px 20px rgba(29, 53, 87, 0.08);
+            }
+
+            header {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="content">
+            
+            <img src="https://pmecdn.protonweb.com/image-transformation/?s=c&image=image%2Fupload%2Fstatic%2Favatars%2FProton_Team_jxnkj0.png" alt="Logo" class="logo">
+            
+            <h1>Proton</h1>
+            <p class="subtitle">Email Security Analysis Report</p>
+            <p class="domain-name">proton.me</p>
+            <p class="date">2026-01-16 at 20:09:55</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Score Global -->
+        <section class="score-section">
+            <div class="grade-circle grade-b">B</div>
+            <div class="score-details">
+                <div class="score-value">78/100</div>
+                <div class="score-label">Overall Security Score</div>
+            </div>
+        </section>
+
+        <!-- Protocols -->
+        <section class="protocols-section">
+            <h2 class="section-title">Protocol Analysis</h2>
+            <div class="protocols-grid">
+                <!-- SPF -->
+                <div class="protocol-card">
+                    <div class="protocol-header">
+                        <span class="protocol-name"><span class="protocol-icon">📧</span> SPF</span>
+                        <span class="protocol-score ">
+                            15/20
+                        </span>
+                    </div>
+                    <div class="protocol-content">
+                        
+                        <div class="protocol-record">v=spf1 include:_spf.protonmail.ch ~all</div>
+                        <div class="protocol-details">
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Mechanism</span>
+                                <span class="detail-value status-warning">
+                                    softfail
+                                </span>
+                            </div>
+                            
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">DNS Lookups</span>
+                                <span class="detail-value status-ok">
+                                    1/10
+                                </span>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <!-- DMARC -->
+                <div class="protocol-card">
+                    <div class="protocol-header">
+                        <span class="protocol-name"><span class="protocol-icon">🛡️</span> DMARC</span>
+                        <span class="protocol-score ">
+                            16/27
+                        </span>
+                    </div>
+                    <div class="protocol-content">
+                        
+                        <div class="protocol-record">v=DMARC1; p=quarantine; fo=1; aspf=s; adkim=s;</div>
+                        <div class="protocol-details">
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Policy (p)</span>
+                                <span class="detail-value status-warning">
+                                    quarantine
+                                </span>
+                            </div>
+                            
+                            
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <!-- DKIM -->
+                <div class="protocol-card">
+                    <div class="protocol-header">
+                        <span class="protocol-name"><span class="protocol-icon">🔑</span> DKIM</span>
+                        <span class="protocol-score full">
+                            21/21
+                        </span>
+                    </div>
+                    <div class="protocol-content">
+                        
+                        <div class="protocol-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Selectors Found</span>
+                                <span class="detail-value status-ok">2</span>
+                            </div>
+                        </div>
+                        <div class="selectors-list">
+                            
+                            <span class="selector-tag">protonmail</span>
+                            
+                            <span class="selector-tag">protonmail3</span>
+                            
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <!-- MTA-STS -->
+                <div class="protocol-card">
+                    <div class="protocol-header">
+                        <span class="protocol-name"><span class="protocol-icon">🔒</span> MTA-STS</span>
+                        <span class="protocol-score full">
+                            12/12
+                        </span>
+                    </div>
+                    <div class="protocol-content">
+                        
+                        <div class="protocol-record">v=STSv1; id=190906205100Z;</div>
+                        <div class="protocol-details">
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Policy</span>
+                                <span class="detail-value status-ok">Available</span>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <!-- TLS-RPT -->
+                <div class="protocol-card">
+                    <div class="protocol-header">
+                        <span class="protocol-name"><span class="protocol-icon">📊</span> TLS-RPT</span>
+                        <span class="protocol-score full">
+                            12/12
+                        </span>
+                    </div>
+                    <div class="protocol-content">
+                        
+                        <div class="protocol-record">v=TLSRPTv1; rua=https://reports.proton.me/reports/smtptls</div>
+                        <div class="protocol-details">
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Report URI</span>
+                                <span class="detail-value status-ok">Configured</span>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <!-- BIMI -->
+                <div class="protocol-card">
+                    <div class="protocol-header">
+                        <span class="protocol-name"><span class="protocol-icon">🎨</span> BIMI</span>
+                        <span class="protocol-score ">
+                            2/8
+                        </span>
+                    </div>
+                    <div class="protocol-content">
+                        
+                        <div class="protocol-record">v=BIMI1; l=; a=;</div>
+                        <div class="protocol-details">
+                            
+                            
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recommendations -->
+        <section class="recommendations-section">
+            <h2 class="section-title">Recommendations</h2>
+
+            
+
+            
+
+            
+            <div class="rec-category rec-critical">
+                <div class="rec-header">
+                    <span class="rec-icon">🔴</span>
+                    Critical Issues (1)
+                </div>
+                <ul class="rec-list">
+                    
+                    <li>Add DMARC aggregate reporting (rua=mailto:...)</li>
+                    
+                </ul>
+            </div>
+            
+
+            
+            <div class="rec-category rec-high">
+                <div class="rec-header">
+                    <span class="rec-icon">🟠</span>
+                    High Priority (4)
+                </div>
+                <ul class="rec-list">
+                    
+                    <li>Consider upgrading SPF from ~all (softfail) to -all (hardfail)</li>
+                    
+                    <li>Consider upgrading DMARC policy from 'quarantine' to 'reject'</li>
+                    
+                    <li>Consider adding explicit subdomain policy (sp=reject)</li>
+                    
+                    <li>Consider adding DMARC forensic reporting (ruf=mailto:...)</li>
+                    
+                </ul>
+            </div>
+            
+
+            
+
+            
+
+            
+        </section>
+    </main>
+
+    <footer>
+        <p>Email Security Audit - Proton Domain v2.0.5</p>
+    </footer>
+</body>
+</html>

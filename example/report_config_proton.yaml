@@ -1,0 +1,23 @@
+# Custom configuration for Proton report example
+# This file demonstrates how to customize HTML reports
+
+branding:
+  logo_url: "https://pmecdn.protonweb.com/image-transformation/?s=c&image=image%2Fupload%2Fstatic%2Favatars%2FProton_Team_jxnkj0.png"
+  company_name: "Proton"
+  footer_text: "Email Security Audit - Proton Domain"
+
+colors:
+  primary: "#6D4AFF"
+  secondary: "#8A6EFF"
+  accent: "#C4B5FD"
+  background: "#F5F4FF"
+  danger: "#DC2626"
+  grade_a: "#6D4AFF"
+  grade_b: "#8A6EFF"
+  grade_c: "#C4B5FD"
+  grade_d: "#F59E0B"
+  grade_f: "#DC2626"
+
+output:
+  directory: "example"
+  filename_format: "{domain}_{date}_{time}.html"
