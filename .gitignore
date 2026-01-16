@@ -1,0 +1,7 @@
+.venv
+.CLAUDE.MD
+output
+plan.MD
+release_notes.MD
+*.log
+.DS_Store

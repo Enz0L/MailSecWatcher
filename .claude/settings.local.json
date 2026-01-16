@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(ls:*)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(python mailsecw.py:*)"
+    ]
+  }
+}
