@@ -1,8 +1,0 @@
-.venv
-CLAUDE.md
-output
-plan.md
-releasenote.md
-*.log
-.DS_Store
-.claude/
