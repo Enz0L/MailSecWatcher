@@ -129,6 +129,37 @@ output:
   filename_format: "{domain}_{date}_{time}.html"
 ```
 
+### Logo Support
+
+The logo can be specified as:
+
+**URL (recommended for shared reports)**:
+```yaml
+logo_url: "https://example.com/logo.png"
+```
+
+**Local path (relative to the output folder)**:
+```yaml
+logo_url: "../assets/logo.png"
+```
+
+> **Note**: For local images, place your logo in an `assets/` folder at the project root. The path should be relative from the `output/` directory where reports are generated.
+
+### Examples
+
+Sample reports and configuration files are available in the `example/` folder:
+
+**HTML Reports:**
+- `example/enzolenair.fr_*.html` - Default configuration
+- `example/google.com_*.html` - Custom Google branding
+- `example/proton.me_*.html` - Custom Proton branding
+
+**YAML Configurations:**
+- `example/report_config_google.yaml` - Google colors and logo
+- `example/report_config_proton.yaml` - Proton colors and logo
+
+To use a custom configuration, copy the YAML file to `config/report_config.yaml` and adjust as needed.
+
 ## How It Works
 
 ### SPF Resolution
@@ -350,31 +381,3 @@ See [LICENSE](LICENSE) for details.
   - Output directory and filename format
 - **Modern responsive design** with CSS variables
 - **Print-friendly** layout
-
-### Previous Changes (v2.0.4)
-
-#### 🎯 DKIM Scoring Simplified
-- **2+ selectors now achieve maximum score** (21/21 points)
-- Recognizes that 2 selectors provide sufficient redundancy for production
-- Updated scoring justification messages
-
-### v2.0.3
-
-#### 🌐 Custom DNS Nameserver Support
-- New `-ns/--nameserver` option to specify custom DNS server
-- Useful for testing, corporate DNS, troubleshooting
-- IP validation included
-- Display message showing which nameserver is in use
-
-#### v2.0.2 Changes
-
-##### 🎯 Categorized Recommendations
-- Recommendations now organized by priority: 🔴 Critical, 🟠 High, 🟡 Medium, 🟢 Low
-- Clear counters showing number of items per category
-- Visual hierarchy for easy scanning
-- No more redundant messages between protocol sections and recommendations
-
-##### 📊 DKIM Score Transparency
-- Displays scoring justification for each selector count
-- Users understand exactly why they received their score
-- Clear guidance on how to improve (add more selectors for redundancy)
