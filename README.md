@@ -250,12 +250,12 @@ Queries `default._bimi.{domain}` TXT record and validates:
 | Component | Max Points |
 |-----------|------------|
 | SPF | 20 |
-| DMARC | 27 |
+| DMARC | 23 |
 | DKIM | 21 |
 | MTA-STS | 12 |
 | TLS-RPT | 12 |
 | BIMI | 8 |
-| **Total** | **100** |
+| **Total** | **96** |
 
 ### SPF Scoring Details
 
@@ -291,7 +291,7 @@ Queries `default._bimi.{domain}` TXT record and validates:
   EMAIL SECURITY ANALYSIS: example.com
 ============================================================
 
-🟢 OVERALL SCORE: 85/100 (Grade: A)
+🟢 OVERALL SCORE: 81/96 (Grade: A)
 
 ──────────────────────────────────────────────────────────────
 
@@ -302,7 +302,7 @@ Queries `default._bimi.{domain}` TXT record and validates:
    Effective mechanism: hardfail
    DNS Lookups: ✅ 4/10
 
-📧 DMARC (22/27)
+📧 DMARC (18/23)
    Record: v=DMARC1; p=quarantine; rua=mailto:dmarc@example.com
    Policy: quarantine
    Subdomain Policy: quarantine (inherited)

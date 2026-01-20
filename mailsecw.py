@@ -685,14 +685,11 @@ def calculate_dmarc_score(dmarc_result):
     
     if "ruf" in explicit:
         score += 2
-    
-    if effective.get("adkim") == "s":
-        score += 2
-    
-    if effective.get("aspf") == "s":
-        score += 2
-    
-    return min(score, 27)
+
+    #Note: adkim and aspf alignment modes (strict vs relaxed) are not scored
+    #Relaxed mode is a valid choice for organizations using subdomains or third-party services
+
+    return min(score, 23)
 
 
 
@@ -1172,15 +1169,17 @@ def categorize_recommendations(spf_result, dmarc_result, dkim_score, mta_sts_res
             high.append("Consider adding DMARC forensic reporting (ruf=mailto:...)")
 
         if effective.get("adkim") != "s":
-            medium.append("Consider strict DKIM alignment (adkim=s) for enhanced security")
+            low.append("Consider strict DKIM alignment (adkim=s) - only if not using subdomains or third-party services")
         if effective.get("aspf") != "s":
-            medium.append("Consider strict SPF alignment (aspf=s) for enhanced security")
+            low.append("Consider strict SPF alignment (aspf=s) - only if not using subdomains or third-party services")
     else:
         critical.append("Implement DMARC record with p=reject policy")
 
     #DKIM recommendations
     if dkim_score == 0:
         critical.append("Implement DKIM signing for outgoing emails")
+    elif dkim_score == 12:
+        high.append("Add at least one more DKIM selector for redundancy")
 
     #MTA-STS recommendations
     if not mta_sts_result or not mta_sts_result.get('record'):
@@ -1281,7 +1280,7 @@ def generate_html_report(domain, spf_result, dmarc_result, dkim_result,
         'dmarc_tags': dmarc_tags,
         'protocols': {
             'spf': {'result': spf_result, 'score': spf_score, 'max': 20},
-            'dmarc': {'result': dmarc_result, 'score': dmarc_score, 'max': 27},
+            'dmarc': {'result': dmarc_result, 'score': dmarc_score, 'max': 23},
             'dkim': {'result': dkim_result, 'score': dkim_score, 'max': 21},
             'mta_sts': {'result': mta_sts_result, 'score': mta_sts_score, 'max': 12},
             'tlsrpt': {'result': tlsrpt_result, 'score': tlsrpt_score, 'max': 12},
@@ -1412,7 +1411,7 @@ def analyze_results(domain, spf_result, dmarc_result, dkim_result, mta_sts_resul
         print("   ❌ No SPF record found")
     
     # DMARC DISPLAY
-    print(f"\n🛡️  DMARC ({dmarc_score}/27)")
+    print(f"\n🛡️  DMARC ({dmarc_score}/23)")
     if dmarc_result and dmarc_parsed:
         effective = dmarc_parsed.get("effective", {})
         explicit = dmarc_parsed.get("explicit", {})
