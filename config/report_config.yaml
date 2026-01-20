@@ -1,0 +1,32 @@
+# Configuration du rapport HTML - MailSecWatcher
+# L'utilisateur peut modifier ce fichier pour personnaliser ses rapports
+
+branding:
+  # Logo affiche dans le header (URL ou chemin relatif)
+  # Laisser vide pour utiliser le logo par defaut (texte)
+  logo_url: ""
+  # Nom de l'entreprise/organisation affiche dans le header
+  company_name: "MailSecWatcher"
+  # Texte du footer
+  footer_text: "Made with ♥ by Enzo LE NAIR"
+
+colors:
+  # Palette de couleurs personnalisable
+  primary: "#1d3557"      # Bleu fonce - Header, texte principal
+  secondary: "#457b9d"    # Bleu - Liens, accents
+  accent: "#a8dadc"       # Cyan - Bordures, hover
+  background: "#f1faee"   # Blanc casse - Fond
+  danger: "#e63946"       # Rouge - Erreurs, critical
+
+  # Couleurs des grades
+  grade_a: "#1d3557"      # A+, A
+  grade_b: "#457b9d"      # B
+  grade_c: "#a8dadc"      # C
+  grade_d: "#e9c46a"      # D (orange/jaune)
+  grade_f: "#e63946"      # F
+
+output:
+  # Dossier de sortie des rapports (relatif au script)
+  directory: "output"
+  # Format du nom de fichier ({domain}, {date}, {time} sont remplaces)
+  filename_format: "{domain}_{date}_{time}.html"

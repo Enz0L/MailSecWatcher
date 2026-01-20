@@ -1,0 +1,23 @@
+# Custom configuration for Google report example
+# This file demonstrates how to customize HTML reports
+
+branding:
+  logo_url: "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png"
+  company_name: "Google"
+  footer_text: "Email Security Audit - Google Domain"
+
+colors:
+  primary: "#4285F4"
+  secondary: "#34A853"
+  accent: "#FBBC05"
+  background: "#f8f9fa"
+  danger: "#EA4335"
+  grade_a: "#34A853"
+  grade_b: "#4285F4"
+  grade_c: "#FBBC05"
+  grade_d: "#F9AB00"
+  grade_f: "#EA4335"
+
+output:
+  directory: "example"
+  filename_format: "{domain}_{date}_{time}.html"
