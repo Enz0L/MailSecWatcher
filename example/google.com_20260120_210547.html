@@ -3,22 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Security Report - proton.me</title>
+    <title>Email Security Report - google.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #6D4AFF;
-            --secondary: #8A6EFF;
-            --accent: #C4B5FD;
-            --background: #F5F4FF;
-            --danger: #DC2626;
-            --grade-a: #6D4AFF;
-            --grade-b: #8A6EFF;
-            --grade-c: #C4B5FD;
-            --grade-d: #F59E0B;
-            --grade-f: #DC2626;
+            --primary: #4285F4;
+            --secondary: #34A853;
+            --accent: #FBBC05;
+            --background: #f8f9fa;
+            --danger: #EA4335;
+            --grade-a: #34A853;
+            --grade-b: #4285F4;
+            --grade-c: #FBBC05;
+            --grade-d: #F9AB00;
+            --grade-f: #EA4335;
         }
 
         * {
@@ -468,21 +468,21 @@
     <header>
         <div class="content">
             
-            <img src="https://pmecdn.protonweb.com/image-transformation/?s=c&image=image%2Fupload%2Fstatic%2Favatars%2FProton_Team_jxnkj0.png" alt="Logo" class="logo">
+            <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png" alt="Logo" class="logo">
             
-            <h1>Proton</h1>
+            <h1>Google</h1>
             <p class="subtitle">Email Security Analysis Report</p>
-            <p class="domain-name">proton.me</p>
-            <p class="date">2026-01-16 at 20:09:55</p>
+            <p class="domain-name">google.com</p>
+            <p class="date">2026-01-20 at 21:05:47</p>
         </div>
     </header>
 
     <main class="container">
         <!-- Score Global -->
         <section class="score-section">
-            <div class="grade-circle grade-b">B</div>
+            <div class="grade-circle grade-c">C</div>
             <div class="score-details">
-                <div class="score-value">78/100</div>
+                <div class="score-value">60/96</div>
                 <div class="score-label">Overall Security Score</div>
             </div>
         </section>
@@ -501,7 +501,7 @@
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-record">v=spf1 include:_spf.protonmail.ch ~all</div>
+                        <div class="protocol-record">v=spf1 include:_spf.google.com ~all</div>
                         <div class="protocol-details">
                             
                             <div class="detail-item">
@@ -529,19 +529,24 @@
                     <div class="protocol-header">
                         <span class="protocol-name"><span class="protocol-icon">🛡️</span> DMARC</span>
                         <span class="protocol-score ">
-                            16/27
+                            21/23
                         </span>
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-record">v=DMARC1; p=quarantine; fo=1; aspf=s; adkim=s;</div>
+                        <div class="protocol-record">v=DMARC1; p=reject; rua=mailto:mailauth-reports@google.com</div>
                         <div class="protocol-details">
                             
                             <div class="detail-item">
                                 <span class="detail-label">Policy (p)</span>
-                                <span class="detail-value status-warning">
-                                    quarantine
+                                <span class="detail-value status-ok">
+                                    reject
                                 </span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Aggregate Reports</span>
+                                <span class="detail-value status-ok">Enabled</span>
                             </div>
                             
                             
@@ -554,25 +559,13 @@
                 <div class="protocol-card">
                     <div class="protocol-header">
                         <span class="protocol-name"><span class="protocol-icon">🔑</span> DKIM</span>
-                        <span class="protocol-score full">
-                            21/21
+                        <span class="protocol-score zero">
+                            0/21
                         </span>
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-details">
-                            <div class="detail-item">
-                                <span class="detail-label">Selectors Found</span>
-                                <span class="detail-value status-ok">2</span>
-                            </div>
-                        </div>
-                        <div class="selectors-list">
-                            
-                            <span class="selector-tag">protonmail</span>
-                            
-                            <span class="selector-tag">protonmail3</span>
-                            
-                        </div>
+                        <p class="status-error">No DKIM selectors found</p>
                         
                     </div>
                 </div>
@@ -587,7 +580,7 @@
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-record">v=STSv1; id=190906205100Z;</div>
+                        <div class="protocol-record">v=STSv1; id=20210803T010101;</div>
                         <div class="protocol-details">
                             
                             <div class="detail-item">
@@ -610,7 +603,7 @@
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-record">v=TLSRPTv1; rua=https://reports.proton.me/reports/smtptls</div>
+                        <div class="protocol-record">v=TLSRPTv1;rua=mailto:sts-reports@google.com</div>
                         <div class="protocol-details">
                             
                             <div class="detail-item">
@@ -627,17 +620,13 @@
                 <div class="protocol-card">
                     <div class="protocol-header">
                         <span class="protocol-name"><span class="protocol-icon">🎨</span> BIMI</span>
-                        <span class="protocol-score ">
-                            2/8
+                        <span class="protocol-score zero">
+                            0/8
                         </span>
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-record">v=BIMI1; l=; a=;</div>
-                        <div class="protocol-details">
-                            
-                            
-                        </div>
+                        <p class="status-warning">No BIMI record found</p>
                         
                     </div>
                 </div>
@@ -660,7 +649,7 @@
                 </div>
                 <ul class="rec-list">
                     
-                    <li>Add DMARC aggregate reporting (rua=mailto:...)</li>
+                    <li>Implement DKIM signing for outgoing emails</li>
                     
                 </ul>
             </div>
@@ -670,13 +659,11 @@
             <div class="rec-category rec-high">
                 <div class="rec-header">
                     <span class="rec-icon">🟠</span>
-                    High Priority (4)
+                    High Priority (3)
                 </div>
                 <ul class="rec-list">
                     
                     <li>Consider upgrading SPF from ~all (softfail) to -all (hardfail)</li>
-                    
-                    <li>Consider upgrading DMARC policy from 'quarantine' to 'reject'</li>
                     
                     <li>Consider adding explicit subdomain policy (sp=reject)</li>
                     
@@ -689,13 +676,29 @@
             
 
             
+            <div class="rec-category rec-low">
+                <div class="rec-header">
+                    <span class="rec-icon">🟢</span>
+                    Low Priority (3)
+                </div>
+                <ul class="rec-list">
+                    
+                    <li>Consider strict DKIM alignment (adkim=s) - only if not using subdomains or third-party services</li>
+                    
+                    <li>Consider strict SPF alignment (aspf=s) - only if not using subdomains or third-party services</li>
+                    
+                    <li>Consider implementing BIMI for brand visibility</li>
+                    
+                </ul>
+            </div>
+            
 
             
         </section>
     </main>
 
     <footer>
-        <p>Email Security Audit - Proton Domain v2.0.5</p>
+        <p>Email Security Audit - Google Domain v2.0.5</p>
     </footer>
 </body>
 </html>

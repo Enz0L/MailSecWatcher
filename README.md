@@ -160,6 +160,22 @@ Sample reports and configuration files are available in the `example/` folder:
 
 To use a custom configuration, copy the YAML file to `config/report_config.yaml` and adjust as needed.
 
+### Screenshots
+
+**Default Configuration:**
+
+![Default Report](screenshots/report_default.png)
+![Default Report](screenshots/report_default2.png)
+
+**Custom Google Branding:**
+
+![Google Report](screenshots/report_google.png)
+![Google Report](screenshots/report_google2.png)
+
+**Custom Proton Branding:**
+
+![Proton Report](screenshots/report_proton.png)
+![Google Report](screenshots/report_proton2.png)
 ## How It Works
 
 ### SPF Resolution
