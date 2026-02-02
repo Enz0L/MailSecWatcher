@@ -1,0 +1,11 @@
+.venv
+CLAUDE.md
+output
+plan.md
+releasenote.md
+*.log
+.DS_Store
+.claude/
+__pycache__/
+MailSecWatcher.code-workspace
+.agents/
