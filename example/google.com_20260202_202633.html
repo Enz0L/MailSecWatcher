@@ -3,22 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Security Report - enzolenair.fr</title>
+    <title>Email Security Report - google.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Work+Sans:wght@400;500;600;700&family=Roboto+Mono&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #1d3557;
-            --secondary: #457b9d;
-            --accent: #a8dadc;
-            --background: #f1faee;
-            --danger: #e63946;
-            --grade-a: #1d3557;
-            --grade-b: #457b9d;
-            --grade-c: #a8dadc;
-            --grade-d: #e9c46a;
-            --grade-f: #e63946;
+            --primary: #4285F4;
+            --secondary: #34A853;
+            --accent: #FBBC05;
+            --background: #f8f9fa;
+            --danger: #EA4335;
+            --grade-a: #34A853;
+            --grade-b: #4285F4;
+            --grade-c: #FBBC05;
+            --grade-d: #F9AB00;
+            --grade-f: #EA4335;
         }
 
         * {
@@ -28,11 +28,81 @@
         }
 
         body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-family: 'Work Sans', system-ui, -apple-system, sans-serif;
             background: linear-gradient(135deg, var(--background) 0%, #ffffff 100%);
             color: var(--primary);
             min-height: 100vh;
             line-height: 1.6;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(69, 123, 157, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(168, 218, 220, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 40% 90%, rgba(230, 57, 70, 0.1) 0%, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        h1, h2 {
+            font-family: 'Archivo Black', sans-serif;
+            letter-spacing: -0.03em;
+        }
+
+        code, .protocol-record {
+            font-family: 'Roboto Mono', 'Monaco', 'Consolas', monospace;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 2rem;
+        }
+
+        *:focus {
+            outline: 3px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        *:focus:not(:focus-visible) {
+            outline: none;
+        }
+
+        *:focus-visible {
+            outline: 3px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        a[href="#main-content"]:focus {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes gradePulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 currentColor;
+            }
+            50% {
+                box-shadow: 0 0 0 10px rgba(29, 53, 87, 0);
+            }
         }
 
         .container {
@@ -106,12 +176,27 @@
             align-items: center;
             gap: 3rem;
             padding: 3rem 2rem;
-            background: white;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
             margin: -2rem 2rem 2rem 2rem;
             border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(29, 53, 87, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(29, 53, 87, 0.12),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.5);
             position: relative;
             z-index: 10;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .score-section::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            mix-blend-mode: overlay;
+            border-radius: 20px;
         }
 
         .grade-circle {
@@ -126,6 +211,7 @@
             color: white;
             position: relative;
             box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            animation: gradePulse 2s ease-in-out infinite;
         }
 
         .grade-circle::before {
@@ -190,17 +276,29 @@
         }
 
         .protocol-card {
-            background: white;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             border-radius: 16px;
             padding: 1.5rem;
             box-shadow: 0 4px 20px rgba(29, 53, 87, 0.08);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            border: 1px solid rgba(168, 218, 220, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(168, 218, 220, 0.4);
+            animation: fadeInUp 0.6s ease-out;
+            animation-fill-mode: both;
         }
 
+        .protocol-card:nth-child(1) { animation-delay: 0.1s; }
+        .protocol-card:nth-child(2) { animation-delay: 0.2s; }
+        .protocol-card:nth-child(3) { animation-delay: 0.3s; }
+        .protocol-card:nth-child(4) { animation-delay: 0.4s; }
+        .protocol-card:nth-child(5) { animation-delay: 0.5s; }
+        .protocol-card:nth-child(6) { animation-delay: 0.6s; }
+
         .protocol-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 30px rgba(29, 53, 87, 0.12);
+            background: rgba(255, 255, 255, 0.8);
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(29, 53, 87, 0.15);
         }
 
         .protocol-header {
@@ -268,6 +366,11 @@
             justify-content: space-between;
             padding: 0.4rem 0;
             border-bottom: 1px dashed rgba(168, 218, 220, 0.5);
+            transition: transform 0.2s ease;
+        }
+
+        .detail-item:hover {
+            transform: translateX(4px);
         }
 
         .detail-item:last-child {
@@ -415,6 +518,79 @@
             text-decoration: none;
         }
 
+        /* Dark Mode */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #0a1628;
+                --bg-secondary: #1a2942;
+                --text-primary: #f1faee;
+                --text-secondary: #a8dadc;
+            }
+
+            body {
+                background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+                color: var(--text-primary);
+            }
+
+            body::before {
+                background:
+                    radial-gradient(circle at 20% 50%, rgba(69, 123, 157, 0.25) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 80%, rgba(168, 218, 220, 0.25) 0%, transparent 50%),
+                    radial-gradient(circle at 40% 90%, rgba(230, 57, 70, 0.2) 0%, transparent 50%);
+            }
+
+            .score-section {
+                background: rgba(26, 41, 66, 0.8);
+                backdrop-filter: blur(20px) saturate(180%);
+                -webkit-backdrop-filter: blur(20px) saturate(180%);
+                border: 1px solid rgba(168, 218, 220, 0.2);
+            }
+
+            .protocol-card {
+                background: rgba(26, 41, 66, 0.6);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                border: 1px solid rgba(168, 218, 220, 0.2);
+            }
+
+            .protocol-card:hover {
+                background: rgba(26, 41, 66, 0.8);
+            }
+
+            .protocol-record {
+                background: rgba(10, 22, 40, 0.6);
+                border-left-color: var(--accent);
+            }
+
+            .rec-category {
+                background: rgba(26, 41, 66, 0.6);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+            }
+
+            .no-issues {
+                background: rgba(26, 41, 66, 0.6);
+            }
+
+            header {
+                background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            }
+
+            .detail-label {
+                color: var(--text-secondary);
+            }
+
+            .score-value,
+            .protocol-name {
+                color: var(--text-primary);
+            }
+
+            footer {
+                border-top-color: rgba(168, 218, 220, 0.3);
+                color: var(--text-secondary);
+            }
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .score-section {
@@ -425,6 +601,21 @@
 
             .protocols-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .protocols-section {
+                position: relative;
+            }
+
+            .protocols-section::after {
+                content: '← Swipe →';
+                position: absolute;
+                bottom: 1rem;
+                left: 50%;
+                transform: translateX(-50%);
+                opacity: 0.5;
+                font-size: 0.85rem;
+                pointer-events: none;
             }
 
             .container {
@@ -446,10 +637,39 @@
             }
         }
 
+        @media (max-width: 768px) and (pointer: coarse) {
+            .protocol-card {
+                padding: 2rem;
+                margin-bottom: 2rem;
+            }
+
+            .detail-item {
+                padding: 1rem;
+                min-height: 44px;
+            }
+        }
+
         /* Print styles */
         @media print {
             body {
                 background: white;
+            }
+
+            body::before {
+                display: none;
+            }
+
+            .score-section,
+            .protocol-card,
+            .rec-category {
+                animation: none;
+                background: white;
+                backdrop-filter: none;
+                -webkit-backdrop-filter: none;
+            }
+
+            .grade-circle {
+                animation: none;
             }
 
             .protocol-card:hover {
@@ -461,26 +681,33 @@
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
+
+            .protocols-section::after {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
+    <a href="#main-content" style="position: absolute; left: -9999px; z-index: 999; padding: 1rem; background: var(--primary); color: white; text-decoration: none;">Skip to main content</a>
     <header>
         <div class="content">
             
-            <h1>MailSecWatcher</h1>
+            <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png" alt="Logo" class="logo">
+            
+            <h1>Google</h1>
             <p class="subtitle">Email Security Analysis Report</p>
-            <p class="domain-name">enzolenair.fr</p>
-            <p class="date">2026-01-20 at 22:19:55</p>
+            <p class="domain-name">google.com</p>
+            <p class="date">2026-02-02 at 20:26:33</p>
         </div>
     </header>
 
-    <main class="container">
+    <main id="main-content" class="container">
         <!-- Score Global -->
         <section class="score-section">
-            <div class="grade-circle grade-b">B</div>
+            <div class="grade-circle grade-c" role="status" aria-live="polite" aria-label="Security Grade C, Score 60 out of 96">C</div>
             <div class="score-details">
-                <div class="score-value">79/96</div>
+                <div class="score-value">60/96</div>
                 <div class="score-label">Overall Security Score</div>
             </div>
         </section>
@@ -492,20 +719,20 @@
                 <!-- SPF -->
                 <div class="protocol-card">
                     <div class="protocol-header">
-                        <span class="protocol-name"><span class="protocol-icon">📧</span> SPF</span>
-                        <span class="protocol-score full">
-                            20/20
+                        <span class="protocol-name"><span class="protocol-icon" aria-label="SPF Protocol" role="img">📧</span> SPF</span>
+                        <span class="protocol-score ">
+                            15/20
                         </span>
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-record">v=spf1 mx include:mx.ovh.com include:_spf.protonmail.ch -all</div>
+                        <div class="protocol-record">v=spf1 include:_spf.google.com ~all</div>
                         <div class="protocol-details">
                             
                             <div class="detail-item">
                                 <span class="detail-label">Mechanism</span>
-                                <span class="detail-value status-ok">
-                                    hardfail
+                                <span class="detail-value status-warning">
+                                    softfail
                                 </span>
                             </div>
                             
@@ -513,7 +740,7 @@
                             <div class="detail-item">
                                 <span class="detail-label">DNS Lookups</span>
                                 <span class="detail-value status-ok">
-                                    3/10
+                                    1/10
                                 </span>
                             </div>
                             
@@ -525,21 +752,26 @@
                 <!-- DMARC -->
                 <div class="protocol-card">
                     <div class="protocol-header">
-                        <span class="protocol-name"><span class="protocol-icon">🛡️</span> DMARC</span>
+                        <span class="protocol-name"><span class="protocol-icon" aria-label="DMARC Protocol" role="img">🛡️</span> DMARC</span>
                         <span class="protocol-score ">
-                            14/23
+                            21/23
                         </span>
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-record">v=DMARC1;p=quarantine;sp=reject;aspf=s;</div>
+                        <div class="protocol-record">v=DMARC1; p=reject; rua=mailto:mailauth-reports@google.com</div>
                         <div class="protocol-details">
                             
                             <div class="detail-item">
                                 <span class="detail-label">Policy (p)</span>
-                                <span class="detail-value status-warning">
-                                    quarantine
+                                <span class="detail-value status-ok">
+                                    reject
                                 </span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">Aggregate Reports</span>
+                                <span class="detail-value status-ok">Enabled</span>
                             </div>
                             
                             
@@ -551,26 +783,14 @@
                 <!-- DKIM -->
                 <div class="protocol-card">
                     <div class="protocol-header">
-                        <span class="protocol-name"><span class="protocol-icon">🔑</span> DKIM</span>
-                        <span class="protocol-score full">
-                            21/21
+                        <span class="protocol-name"><span class="protocol-icon" aria-label="DKIM Protocol" role="img">🔑</span> DKIM</span>
+                        <span class="protocol-score zero">
+                            0/21
                         </span>
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-details">
-                            <div class="detail-item">
-                                <span class="detail-label">Selectors Found</span>
-                                <span class="detail-value status-ok">2</span>
-                            </div>
-                        </div>
-                        <div class="selectors-list">
-                            
-                            <span class="selector-tag">protonmail2</span>
-                            
-                            <span class="selector-tag">protonmail3</span>
-                            
-                        </div>
+                        <p class="status-error">No DKIM selectors found</p>
                         
                     </div>
                 </div>
@@ -578,14 +798,14 @@
                 <!-- MTA-STS -->
                 <div class="protocol-card">
                     <div class="protocol-header">
-                        <span class="protocol-name"><span class="protocol-icon">🔒</span> MTA-STS</span>
+                        <span class="protocol-name"><span class="protocol-icon" aria-label="MTA-STS Protocol" role="img">🔒</span> MTA-STS</span>
                         <span class="protocol-score full">
                             12/12
                         </span>
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-record">v=STSv1; id=1748857509</div>
+                        <div class="protocol-record">v=STSv1; id=20210803T010101;</div>
                         <div class="protocol-details">
                             
                             <div class="detail-item">
@@ -601,14 +821,14 @@
                 <!-- TLS-RPT -->
                 <div class="protocol-card">
                     <div class="protocol-header">
-                        <span class="protocol-name"><span class="protocol-icon">📊</span> TLS-RPT</span>
+                        <span class="protocol-name"><span class="protocol-icon" aria-label="TLS-RPT Protocol" role="img">📊</span> TLS-RPT</span>
                         <span class="protocol-score full">
                             12/12
                         </span>
                     </div>
                     <div class="protocol-content">
                         
-                        <div class="protocol-record">v=TLSRPTv1; rua=mailto:enzo@enzolenair.fr</div>
+                        <div class="protocol-record">v=TLSRPTv1;rua=mailto:sts-reports@google.com</div>
                         <div class="protocol-details">
                             
                             <div class="detail-item">
@@ -624,7 +844,7 @@
                 <!-- BIMI -->
                 <div class="protocol-card">
                     <div class="protocol-header">
-                        <span class="protocol-name"><span class="protocol-icon">🎨</span> BIMI</span>
+                        <span class="protocol-name"><span class="protocol-icon" aria-label="BIMI Protocol" role="img">🎨</span> BIMI</span>
                         <span class="protocol-score zero">
                             0/8
                         </span>
@@ -654,7 +874,7 @@
                 </div>
                 <ul class="rec-list">
                     
-                    <li>Add DMARC aggregate reporting (rua=mailto:...)</li>
+                    <li>Implement DKIM signing for outgoing emails</li>
                     
                 </ul>
             </div>
@@ -664,11 +884,13 @@
             <div class="rec-category rec-high">
                 <div class="rec-header">
                     <span class="rec-icon">🟠</span>
-                    High Priority (2)
+                    High Priority (3)
                 </div>
                 <ul class="rec-list">
                     
-                    <li>Consider upgrading DMARC policy from 'quarantine' to 'reject'</li>
+                    <li>Consider upgrading SPF from ~all (softfail) to -all (hardfail)</li>
+                    
+                    <li>Consider adding explicit subdomain policy (sp=reject)</li>
                     
                     <li>Consider adding DMARC forensic reporting (ruf=mailto:...)</li>
                     
@@ -682,11 +904,13 @@
             <div class="rec-category rec-low">
                 <div class="rec-header">
                     <span class="rec-icon">🟢</span>
-                    Low Priority (2)
+                    Low Priority (3)
                 </div>
                 <ul class="rec-list">
                     
                     <li>Consider strict DKIM alignment (adkim=s) - only if not using subdomains or third-party services</li>
+                    
+                    <li>Consider strict SPF alignment (aspf=s) - only if not using subdomains or third-party services</li>
                     
                     <li>Consider implementing BIMI for brand visibility</li>
                     
@@ -699,7 +923,7 @@
     </main>
 
     <footer>
-        <p>Made with ♥ by Enzo LE NAIR v2.0.5</p>
+        <p>Email Security Audit - Google Domain v2.0.5</p>
     </footer>
 </body>
 </html>
